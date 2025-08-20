@@ -53,7 +53,7 @@ export default function ReportsPage() {
     };
 
     const formatCurrency = (amount: number) => {
-        return new Intl.NumberFormat('en-US', {
+        return new Intl.NumberFormat('es-EC', {
             style: 'currency',
             currency: 'USD',
         }).format(amount);
@@ -61,7 +61,7 @@ export default function ReportsPage() {
 
     const getTopSellingSnacks = () => {
         const snackSales = sales.reduce((acc, sale) => {
-            const snackName = sale.snack?.name || 'Unknown';
+            const snackName = sale.snack?.name || 'Desconocido';
             acc[snackName] = (acc[snackName] || 0) + sale.quantity;
             return acc;
         }, {} as Record<string, number>);
@@ -73,7 +73,7 @@ export default function ReportsPage() {
 
     const getTopCustomers = () => {
         const customerSales = sales.reduce((acc, sale) => {
-            const customerName = sale.person?.name || 'Unknown';
+            const customerName = sale.person?.name || 'Desconocido';
             acc[customerName] = (acc[customerName] || 0) + sale.total;
             return acc;
         }, {} as Record<string, number>);
@@ -197,33 +197,33 @@ export default function ReportsPage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Summary Cards */}
                 <Card>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Summary</h3>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Resumen</h3>
                     <div className="space-y-3">
                         <div className="flex justify-between items-center">
                             <div className="flex items-center space-x-2">
                                 <Package className="h-4 w-4 text-gray-400" />
-                                <span className="text-gray-600">Total Snacks</span>
+                                <span className="text-gray-600">Snacks totales</span>
                             </div>
                             <span className="font-semibold">{snacks.length}</span>
                         </div>
                         <div className="flex justify-between items-center">
                             <div className="flex items-center space-x-2">
                                 <Users className="h-4 w-4 text-gray-400" />
-                                <span className="text-gray-600">Total People</span>
+                                <span className="text-gray-600">Personas totales</span>
                             </div>
                             <span className="font-semibold">{people.length}</span>
                         </div>
                         <div className="flex justify-between items-center">
                             <div className="flex items-center space-x-2">
                                 <ShoppingCart className="h-4 w-4 text-gray-400" />
-                                <span className="text-gray-600">Total Sales</span>
+                                <span className="text-gray-600">Ventas totales</span>
                             </div>
                             <span className="font-semibold">{sales.length}</span>
                         </div>
                         <div className="flex justify-between items-center">
                             <div className="flex items-center space-x-2">
                                 <CreditCard className="h-4 w-4 text-gray-400" />
-                                <span className="text-gray-600">Unpaid Debts</span>
+                                <span className="text-gray-600">Deudas pendientes</span>
                             </div>
                             <span className="font-semibold">{unpaidDebts.length}</span>
                         </div>
@@ -232,7 +232,7 @@ export default function ReportsPage() {
 
                 {/* Top Selling Snacks */}
                 <Card>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Top Selling Snacks</h3>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Snacks más vendidos</h3>
                     {topSellingSnacks.length > 0 ? (
                         <div className="space-y-3">
                             {topSellingSnacks.map(([snackName, quantity], index) => (
@@ -241,18 +241,18 @@ export default function ReportsPage() {
                                         <span className="text-sm font-medium text-gray-500">#{index + 1}</span>
                                         <span className="text-gray-900">{snackName}</span>
                                     </div>
-                                    <span className="font-semibold">{quantity} sold</span>
+                                    <span className="font-semibold">{quantity} vendidos</span>
                                 </div>
                             ))}
                         </div>
                     ) : (
-                        <p className="text-gray-500">No sales data available</p>
+                        <p className="text-gray-500">No hay datos de ventas disponibles</p>
                     )}
                 </Card>
 
                 {/* Top Customers */}
                 <Card>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Top Customers</h3>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Mejores clientes</h3>
                     {topCustomers.length > 0 ? (
                         <div className="space-y-3">
                             {topCustomers.map(([customerName, total], index) => (
@@ -266,16 +266,16 @@ export default function ReportsPage() {
                             ))}
                         </div>
                     ) : (
-                        <p className="text-gray-500">No customer data available</p>
+                        <p className="text-gray-500">No hay datos de clientes disponibles</p>
                     )}
                 </Card>
 
                 {/* Profit Analysis */}
                 <Card>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Profit Analysis</h3>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Análisis de ganancias</h3>
                     <div className="space-y-3">
                         <div className="flex justify-between items-center">
-                            <span className="text-gray-600">Profit Margin</span>
+                            <span className="text-gray-600">Margen de ganancia</span>
                             <span className={`font-semibold ${reports.total_profit >= 0 ? 'text-green-600' : 'text-red-600'
                                 }`}>
                                 {reports.total_investment > 0
@@ -285,7 +285,7 @@ export default function ReportsPage() {
                             </span>
                         </div>
                         <div className="flex justify-between items-center">
-                            <span className="text-gray-600">Average Sale Value</span>
+                            <span className="text-gray-600">Valor promedio de venta</span>
                             <span className="font-semibold">
                                 {sales.length > 0
                                     ? formatCurrency(sales.reduce((sum, sale) => sum + sale.total, 0) / sales.length)
@@ -294,7 +294,7 @@ export default function ReportsPage() {
                             </span>
                         </div>
                         <div className="flex justify-between items-center">
-                            <span className="text-gray-600">Debt Rate</span>
+                            <span className="text-gray-600">Tasa de deuda</span>
                             <span className="font-semibold">
                                 {sales.length > 0
                                     ? ((unpaidDebts.length / sales.length) * 100).toFixed(1)

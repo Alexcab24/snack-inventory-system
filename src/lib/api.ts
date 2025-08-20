@@ -241,7 +241,11 @@ export const saleApi = {
     async getAll(): Promise<Sale[]> {
         const { data, error } = await supabase
             .from('sale')
-            .select('*')
+            .select(`
+                *,
+                snack:snack_id(*),
+                person:person_id(*)
+            `)
             .order('created_at', { ascending: false });
 
         if (error) throw error;

@@ -11,7 +11,7 @@ import {
     CreditCard,
     Menu,
     X,
-    // BarChart3,
+    BarChart3,
 } from 'lucide-react';
 
 const navigation = [
@@ -19,7 +19,7 @@ const navigation = [
     { name: 'Personas', href: '/people', icon: Users },
     { name: 'Ventas', href: '/sales', icon: ShoppingCart },
     { name: 'Deudas', href: '/debts', icon: CreditCard },
-    // { name: 'Reportes', href: '/reports', icon: BarChart3 },
+    { name: 'Reportes', href: '/reports', icon: BarChart3 },
 ];
 
 export function Navigation() {
