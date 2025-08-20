@@ -6,11 +6,19 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
+import { DatePicker } from '@/components/ui/DatePicker';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
-import { Plus, X, Package, User, DollarSign, RefreshCw, CheckCircle, Clock } from 'lucide-react';
+import { SearchBar } from '@/components/ui/SearchBar';
+import { Pagination } from '@/components/ui/Pagination';
+import { Plus, X, Package, User, DollarSign, RefreshCw, CheckCircle, Clock, Trash2, ShoppingCart, Filter, AlertCircle } from 'lucide-react';
 import { saleApi, snackApi, personApi } from '@/lib/api';
-import { formatCurrency } from '@/lib/utils';
-import type { Sale, Snack, Person, CreateSaleData } from '@/types';
+import { formatCurrency, useQueryParams, getPaginatedData, getTotalPages } from '@/lib/utils';
+import type { Sale, Snack, Person, CreateSaleData, CreateSaleItemData } from '@/types';
+
+interface CartItem extends CreateSaleItemData {
+    snack: Snack;
+    subtotal: number;
+}
 
 export default function SalesPage() {
     const [sales, setSales] = useState<Sale[]>([]);
@@ -18,16 +26,76 @@ export default function SalesPage() {
     const [people, setPeople] = useState<Person[]>([]);
     const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
-    const [formData, setFormData] = useState<CreateSaleData>({
-        snack_id: '',
-        person_id: '',
-        quantity: 1,
-        paid: 1, // 1 = true, 0 = false
+
+    // Query params
+    const { getParam, setMultipleParams } = useQueryParams();
+    const searchTerm = getParam('search', '');
+    const paymentFilter = getParam('payment', 'all'); // 'all', 'paid', 'unpaid'
+    const currentPage = parseInt(getParam('page', '1'));
+    const pageSize = 10;
+
+    // Filtered and paginated data
+    let filteredSales = sales;
+
+    // Apply payment filter
+    if (paymentFilter !== 'all') {
+        filteredSales = filteredSales.filter(sale => {
+            if (paymentFilter === 'paid') {
+                return sale.paid === 1;
+            } else if (paymentFilter === 'unpaid') {
+                return sale.paid === 0;
+            }
+            return true;
+        });
+    }
+
+    // Apply search filter
+    if (searchTerm.trim()) {
+        filteredSales = filteredSales.filter(sale => {
+            const personName = sale.person?.name || '';
+            const saleDate = sale.sale_date ? (() => {
+                const [year, month, day] = sale.sale_date.split('-').map(Number);
+                return `${day}/${month}/${year}`;
+            })() : '';
+            const createdDate = sale.created_at ? new Date(sale.created_at).toLocaleDateString('es-ES') : '';
+            const searchLower = searchTerm.toLowerCase();
+
+            const matches = personName.toLowerCase().includes(searchLower) ||
+                saleDate.includes(searchLower) ||
+                createdDate.includes(searchLower);
+
+            if (searchTerm && (personName || saleDate || createdDate)) {
+                console.log('Sales search debug:', {
+                    searchTerm,
+                    personName,
+                    saleDate,
+                    createdDate,
+                    matches
+                });
+            }
+
+            return matches;
+        });
+    }
+    const paginatedSales = getPaginatedData(filteredSales, currentPage, pageSize);
+    const totalPages = getTotalPages(filteredSales.length, pageSize);
+
+    // Cart state
+    const [cart, setCart] = useState<CartItem[]>([]);
+    const [selectedPersonId, setSelectedPersonId] = useState<string>('');
+    const [paid, setPaid] = useState<number>(1); // 1 = true, 0 = false
+    const [saleDate, setSaleDate] = useState<string>(() => {
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
     });
 
-    // Estados separados para los selectores (strings)
+    // Form state for adding items
     const [selectedSnackId, setSelectedSnackId] = useState<string>('');
-    const [selectedPersonId, setSelectedPersonId] = useState<string>('');
+    const [itemQuantity, setItemQuantity] = useState<number>(1);
+
     const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; saleData: CreateSaleData | null }>({
         isOpen: false,
         saleData: null
@@ -46,15 +114,11 @@ export default function SalesPage() {
                 personApi.getAll(),
             ]);
 
-            console.log('Loaded data:', {
-                sales: salesData.length,
-                snacks: snacksData.length,
-                people: peopleData.length
-            });
+            console.log('Loaded sales:', salesData);
+            if (salesData.length > 0) {
+                console.log('Sample sale structure:', salesData[0]);
+            }
 
-            console.log(salesData);
-            console.log(snacksData);
-            console.log(peopleData);
             setSales(salesData);
             setSnacks(snacksData);
             setPeople(peopleData);
@@ -66,39 +130,120 @@ export default function SalesPage() {
         }
     };
 
+    const addToCart = () => {
+        if (!selectedSnackId || itemQuantity <= 0) {
+            toast.error('Por favor selecciona un snack y una cantidad válida');
+            return;
+        }
+
+        const snack = snacks.find(s => s.id_snack === selectedSnackId);
+        if (!snack) {
+            toast.error('Snack no encontrado');
+            return;
+        }
+
+        // Check if item already exists in cart
+        const existingItemIndex = cart.findIndex(item => item.snack_id === selectedSnackId);
+
+        if (existingItemIndex >= 0) {
+            // Update existing item
+            const updatedCart = [...cart];
+            const newQuantity = updatedCart[existingItemIndex].quantity + itemQuantity;
+
+            if (newQuantity > snack.stock) {
+                toast.error(`Stock insuficiente. Solo hay ${snack.stock} unidades disponibles de ${snack.name}`);
+                return;
+            }
+
+            updatedCart[existingItemIndex] = {
+                ...updatedCart[existingItemIndex],
+                quantity: newQuantity,
+                subtotal: snack.unit_sale_price * newQuantity
+            };
+            setCart(updatedCart);
+        } else {
+            // Add new item
+            if (itemQuantity > snack.stock) {
+                toast.error(`Stock insuficiente. Solo hay ${snack.stock} unidades disponibles de ${snack.name}`);
+                return;
+            }
+
+            setCart([...cart, {
+                snack_id: selectedSnackId,
+                quantity: itemQuantity,
+                snack,
+                subtotal: snack.unit_sale_price * itemQuantity
+            }]);
+        }
+
+        // Reset form
+        setSelectedSnackId('');
+        setItemQuantity(1);
+    };
+
+    const removeFromCart = (snackId: string) => {
+        setCart(cart.filter(item => item.snack_id !== snackId));
+    };
+
+    const updateCartItemQuantity = (snackId: string, newQuantity: number) => {
+        if (newQuantity <= 0) {
+            removeFromCart(snackId);
+            return;
+        }
+
+        const item = cart.find(item => item.snack_id === snackId);
+        if (!item) return;
+
+        if (newQuantity > item.snack.stock) {
+            toast.error(`Stock insuficiente. Solo hay ${item.snack.stock} unidades disponibles de ${item.snack.name}`);
+            return;
+        }
+
+        setCart(cart.map(item =>
+            item.snack_id === snackId
+                ? { ...item, quantity: newQuantity, subtotal: item.snack.unit_sale_price * newQuantity }
+                : item
+        ));
+    };
+
+    const getCartTotal = () => {
+        return cart.reduce((total, item) => total + item.subtotal, 0);
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        console.log('Validating form data:', {
-            snack_id: formData.snack_id,
-            person_id: formData.person_id,
-            quantity: formData.quantity,
-            selectedSnackId,
-            selectedPersonId
-        });
-
-        if (!selectedSnackId || !selectedPersonId || formData.quantity <= 0) {
-            toast.error('Por favor completa todos los campos con valores válidos');
+        if (!selectedPersonId) {
+            toast.error('Por favor selecciona una persona');
             return;
         }
 
-        // Validar stock disponible
-        const selectedSnack = snacks.find(s => s.id_snack === selectedSnackId);
-        if (selectedSnack && formData.quantity > selectedSnack.stock) {
-            toast.error(`Stock insuficiente. Solo hay ${selectedSnack.stock} unidades disponibles de ${selectedSnack.name}`);
+        if (cart.length === 0) {
+            toast.error('Por favor agrega al menos un item al carrito');
             return;
         }
 
-        // Asegurar que los valores estén actualizados
-        const saleData = {
-            ...formData,
-            snack_id: selectedSnackId,
-            person_id: selectedPersonId
+        // Ensure the date is in the correct format for the database
+        // Parse the date to ensure it's treated as local date, not UTC
+        const [year, month, day] = saleDate.split('-').map(Number);
+        const localDate = new Date(year, month - 1, day);
+        const formattedDate = `${localDate.getFullYear()}-${String(localDate.getMonth() + 1).padStart(2, '0')}-${String(localDate.getDate()).padStart(2, '0')}`;
+
+        console.log('Original saleDate:', saleDate);
+        console.log('Parsed date components:', { year, month, day });
+        console.log('Local date object:', localDate);
+        console.log('Formatted date for database:', formattedDate);
+
+        const saleData: CreateSaleData = {
+            person_id: selectedPersonId,
+            items: cart.map(item => ({
+                snack_id: item.snack_id,
+                quantity: item.quantity
+            })),
+            paid,
+            sale_date: formattedDate
         };
 
-        console.log('Preparing sale data:', saleData);
-
-        // Mostrar modal de confirmación
         setConfirmModal({ isOpen: true, saleData });
     };
 
@@ -106,7 +251,6 @@ export default function SalesPage() {
         if (!confirmModal.saleData) return;
 
         try {
-            console.log('Creating sale with data:', confirmModal.saleData);
             await saleApi.create(confirmModal.saleData);
             toast.success('Venta registrada exitosamente');
             resetForm();
@@ -120,25 +264,33 @@ export default function SalesPage() {
     };
 
     const resetForm = () => {
-        setFormData({
-            snack_id: '',
-            person_id: '',
-            quantity: 1,
-            paid: 1, // 1 = true, 0 = false
-        });
-        setSelectedSnackId('');
+        setCart([]);
         setSelectedPersonId('');
+        setPaid(1);
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        setSaleDate(`${year}-${month}-${day}`);
+        setSelectedSnackId('');
+        setItemQuantity(1);
         setShowForm(false);
-    };
-
-
-
-    const getSnackName = (snackId: string) => {
-        return snacks.find(s => s.id_snack === snackId)?.name || 'Unknown Snack';
     };
 
     const getPersonName = (personId: string) => {
         return people.find(p => p.id_person === personId)?.name || 'Unknown Person';
+    };
+
+    const handleSearchChange = (value: string) => {
+        setMultipleParams({ search: value, page: '1' });
+    };
+
+    const handlePaymentFilterChange = (value: string) => {
+        setMultipleParams({ payment: value, page: '1' });
+    };
+
+    const handlePageChange = (page: number) => {
+        setMultipleParams({ page: page.toString() });
     };
 
     if (loading) {
@@ -149,26 +301,17 @@ export default function SalesPage() {
         );
     }
 
-    console.log('Current state:', {
-        formData,
-        snacksCount: snacks.length,
-        peopleCount: people.length,
-        salesCount: sales.length,
-        snacks: snacks.map(s => ({ id: s.id_snack, name: s.name })),
-        people: people.map(p => ({ id: p.id_person, name: p.name }))
-    });
-
     return (
         <div className="space-y-8">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
                 <div className="space-y-2">
                     <h1 className="text-3xl sm:text-4xl font-bold text-slate-900">Gestión de Ventas</h1>
-                    <p className="text-slate-600">Registra ventas y rastrea el estado de pagos</p>
+                    <p className="text-slate-600">Registra ventas con múltiples snacks y rastrea el estado de pagos</p>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-3">
                     <Button onClick={() => setShowForm(true)} className="shadow-lg w-full sm:w-auto">
                         <Plus className="h-4 w-4 mr-2" />
-                        Registrar Venta
+                        Nueva Venta
                     </Button>
                     <Button
                         onClick={loadData}
@@ -182,79 +325,152 @@ export default function SalesPage() {
                 </div>
             </div>
 
-            <div className={`overflow-hidden transition-all duration-500 ease-in-out ${showForm ? 'max-h-screen opacity-100' : 'max-h-0 opacity-0'
-                }`}>
-                <Card className={`transform transition-all duration-500 ease-in-out ${showForm ? 'translate-y-0 scale-100' : 'translate-y-8 scale-95'
-                    }`}>
+            <div className={`overflow-hidden transition-all duration-500 ease-in-out ${showForm ? 'max-h-screen opacity-100' : 'max-h-0 opacity-0'}`}>
+                <Card className={`transform transition-all duration-500 ease-in-out ${showForm ? 'translate-y-0 scale-100' : 'translate-y-8 scale-95'}`}>
                     <div className="flex justify-between items-center mb-6">
-                        <h2 className="text-2xl font-bold text-slate-900">Registrar Nueva Venta</h2>
+                        <h2 className="text-2xl font-bold text-slate-900">Nueva Venta</h2>
                         <Button variant="ghost" size="sm" onClick={resetForm} className="hover:bg-red-50 hover:text-red-600">
                             <X className="h-5 w-5" />
                         </Button>
                     </div>
 
-                    <form onSubmit={handleSubmit} className="space-y-4">
+                    <form onSubmit={handleSubmit} className="space-y-6">
+                        {/* Person Selection and Date */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <Select
-                                label={`Seleccionar Snack (${snacks.length} disponibles)`}
-                                value={selectedSnackId}
-                                onChange={(value) => {
-                                    setSelectedSnackId(value as string);
-                                    setFormData({ ...formData, snack_id: value as string });
-                                }}
-                                options={loading ? [{ value: '', label: 'Cargando snacks...' }] : snacks.length > 0 ? snacks.map(snack => ({
-                                    value: snack.id_snack,
-                                    label: snack.name,
-                                    description: `${formatCurrency(snack.unit_sale_price)} - Stock: ${snack.stock} unidades`,
-                                    icon: <Package className="h-4 w-4" />
-                                })) : [{ value: '', label: 'No hay snacks disponibles' }]}
-                                placeholder="Seleccionar snack"
-                                required
-                                disabled={loading || snacks.length === 0}
-                            />
-
                             <Select
                                 label={`Seleccionar Persona (${people.length} disponibles)`}
                                 value={selectedPersonId}
-                                onChange={(value) => {
-                                    setSelectedPersonId(value as string);
-                                    setFormData({ ...formData, person_id: value as string });
-                                }}
-                                options={loading ? [{ value: '', label: 'Cargando personas...' }] : people.length > 0 ? people.map(person => ({
+                                onChange={(value) => setSelectedPersonId(value as string)}
+                                options={people.map(person => ({
                                     value: person.id_person,
                                     label: person.name,
                                     icon: <User className="h-4 w-4" />
-                                })) : [{ value: '', label: 'No hay personas disponibles' }]}
+                                }))}
                                 placeholder="Seleccionar persona"
                                 required
-                                disabled={loading || people.length === 0}
+                            />
+
+                            <DatePicker
+                                label="Fecha de Venta"
+                                value={saleDate}
+                                onChange={setSaleDate}
+                                required
                             />
                         </div>
 
-                        <Input
-                            label="Cantidad"
-                            type="number"
-                            min="1"
-                            value={formData.quantity}
-                            onChange={(e) => setFormData({ ...formData, quantity: parseFloat(e.target.value) || 1 })}
-                            enableNumericHandling
-                            required
-                        />
+                        {/* Add Items to Cart */}
+                        <div className="bg-gray-50 p-4 rounded-lg">
+                            <h3 className="text-lg font-semibold mb-4 flex items-center">
+                                <ShoppingCart className="h-5 w-5 mr-2" />
+                                Agregar Items al Carrito
+                            </h3>
 
-                        {/* Payment Status Toggle */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <Select
+                                    label="Snack"
+                                    value={selectedSnackId}
+                                    onChange={(value) => setSelectedSnackId(value as string)}
+                                    options={snacks.filter(s => s.stock > 0).map(snack => ({
+                                        value: snack.id_snack,
+                                        label: snack.name,
+                                        description: `${formatCurrency(snack.unit_sale_price)} - Stock: ${snack.stock}`,
+                                        icon: <Package className="h-4 w-4" />
+                                    }))}
+                                    placeholder="Seleccionar snack"
+                                />
+
+                                <Input
+                                    label="Cantidad"
+                                    type="number"
+                                    min="1"
+                                    value={itemQuantity}
+                                    onChange={(e) => setItemQuantity(parseFloat(e.target.value) || 1)}
+                                    enableNumericHandling
+                                />
+
+                                <div className="flex items-end">
+                                    <Button
+                                        type="button"
+                                        onClick={addToCart}
+                                        disabled={!selectedSnackId || itemQuantity <= 0}
+                                        className="w-full"
+                                    >
+                                        <Plus className="h-4 w-4 mr-2" />
+                                        Agregar
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Shopping Cart */}
+                        {cart.length > 0 && (
+                            <div className="bg-blue-50 p-4 rounded-lg">
+                                <h3 className="text-lg font-semibold mb-4 flex items-center">
+                                    <ShoppingCart className="h-5 w-5 mr-2" />
+                                    Carrito de Compra ({cart.length} items)
+                                </h3>
+
+                                <div className="space-y-3">
+                                    {cart.map((item) => (
+                                        <div key={item.snack_id} className="flex items-center justify-between bg-white p-3 rounded-lg shadow-sm">
+                                            <div className="flex-1">
+                                                <div className="font-semibold">{item.snack.name}</div>
+                                                <div className="text-sm text-gray-600">
+                                                    {formatCurrency(item.snack.unit_sale_price)} x {item.quantity}
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center space-x-3">
+                                                <Input
+                                                    type="number"
+                                                    min="1"
+                                                    max={item.snack.stock}
+                                                    value={item.quantity}
+                                                    onChange={(e) => updateCartItemQuantity(item.snack_id, parseFloat(e.target.value) || 1)}
+                                                    className="w-20"
+                                                    enableNumericHandling
+                                                />
+
+                                                <div className="text-right">
+                                                    <div className="font-semibold">{formatCurrency(item.subtotal)}</div>
+                                                </div>
+
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() => removeFromCart(item.snack_id)}
+                                                    className="text-red-600 hover:bg-red-50"
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    ))}
+
+                                    <div className="border-t pt-3">
+                                        <div className="flex justify-between items-center text-lg font-bold">
+                                            <span>Total:</span>
+                                            <span>{formatCurrency(getCartTotal())}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Payment Status */}
                         <div className="space-y-3">
                             <label className="text-sm font-medium text-gray-700">Estado de Pago</label>
                             <div className="flex space-x-4">
                                 <button
                                     type="button"
-                                    onClick={() => setFormData({ ...formData, paid: 1 })}
-                                    className={`flex-1 flex items-center justify-center space-x-3 py-4 px-6 rounded-xl border-2 transition-all duration-300 ${formData.paid === 1
+                                    onClick={() => setPaid(1)}
+                                    className={`flex-1 flex items-center justify-center space-x-3 py-4 px-6 rounded-xl border-2 transition-all duration-300 ${paid === 1
                                         ? 'border-green-500 bg-green-50 text-green-700 shadow-lg shadow-green-100'
                                         : 'border-gray-200 bg-white text-gray-500 hover:border-green-300 hover:bg-green-25 hover:shadow-md'
                                         }`}
                                 >
-                                    <CheckCircle className={`w-5 h-5 transition-all duration-300 ${formData.paid === 1 ? 'text-green-600' : 'text-gray-400'
-                                        }`} />
+                                    <CheckCircle className={`w-5 h-5 transition-all duration-300 ${paid === 1 ? 'text-green-600' : 'text-gray-400'}`} />
                                     <div className="text-center">
                                         <div className="font-semibold">Pagado</div>
                                         <div className="text-xs opacity-75">Pago inmediato</div>
@@ -263,101 +479,96 @@ export default function SalesPage() {
 
                                 <button
                                     type="button"
-                                    onClick={() => setFormData({ ...formData, paid: 0 })}
-                                    className={`flex-1 flex items-center justify-center space-x-3 py-4 px-6 rounded-xl border-2 transition-all duration-300 ${formData.paid === 0
+                                    onClick={() => setPaid(0)}
+                                    className={`flex-1 flex items-center justify-center space-x-3 py-4 px-6 rounded-xl border-2 transition-all duration-300 ${paid === 0
                                         ? 'border-red-500 bg-red-50 text-red-700 shadow-lg shadow-red-100'
                                         : 'border-gray-200 bg-white text-gray-500 hover:border-red-300 hover:bg-red-25 hover:shadow-md'
                                         }`}
                                 >
-                                    <Clock className={`w-5 h-5 transition-all duration-300 ${formData.paid === 0 ? 'text-red-600' : 'text-gray-400'
-                                        }`} />
+                                    <Clock className={`w-5 h-5 transition-all duration-300 ${paid === 0 ? 'text-red-600' : 'text-gray-400'}`} />
                                     <div className="text-center">
                                         <div className="font-semibold">Pendiente</div>
                                         <div className="text-xs opacity-75">Deuda futura</div>
                                     </div>
                                 </button>
                             </div>
-
-                            {/* Payment Status Info */}
-                            <div className={`p-4 rounded-xl border-2 transition-all duration-300 ${formData.paid === 1
-                                ? 'border-green-200 bg-green-25 shadow-sm'
-                                : 'border-red-200 bg-red-25 shadow-sm'
-                                }`}>
-                                <div className="flex items-start space-x-3">
-                                    {formData.paid === 1 ? (
-                                        <>
-                                            <div className="flex-shrink-0 mt-0.5">
-                                                <CheckCircle className="w-5 h-5 text-green-600" />
-                                            </div>
-                                            <div>
-                                                <div className="text-sm font-semibold text-green-800">
-                                                    Pago Inmediato
-                                                </div>
-                                                <div className="text-sm text-green-700 mt-1">
-                                                    La venta se marcará como pagada y se registrará en el historial de ventas completadas.
-                                                </div>
-                                            </div>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <div className="flex-shrink-0 mt-0.5">
-                                                <Clock className="w-5 h-5 text-red-600" />
-                                            </div>
-                                            <div>
-                                                <div className="text-sm font-semibold text-red-800">
-                                                    Deuda Pendiente
-                                                </div>
-                                                <div className="text-sm text-red-700 mt-1">
-                                                    Se creará una deuda que aparecerá en la sección de deudas para seguimiento posterior.
-                                                </div>
-                                            </div>
-                                        </>
-                                    )}
-                                </div>
-                            </div>
                         </div>
-
-                        {(snacks.length === 0 || people.length === 0) && (
-                            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                                <div className="flex">
-                                    <div className="flex-shrink-0">
-                                        <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
-                                            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                                        </svg>
-                                    </div>
-                                    <div className="ml-3">
-                                        <h3 className="text-sm font-medium text-yellow-800">
-                                            Datos Faltantes
-                                        </h3>
-                                        <div className="mt-2 text-sm text-yellow-700">
-                                            {snacks.length === 0 && (
-                                                <p>• No hay snacks disponibles. <a href="/snacks" className="text-blue-600 hover:text-blue-800 underline">Agrega algunos snacks primero</a>.</p>
-                                            )}
-                                            {people.length === 0 && (
-                                                <p>• No hay personas disponibles. <a href="/people" className="text-blue-600 hover:text-blue-800 underline">Agrega algunas personas primero</a>.</p>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
 
                         <div className="flex justify-end space-x-3">
                             <Button type="button" variant="secondary" onClick={resetForm}>
                                 Cancelar
                             </Button>
-                            <Button type="submit" disabled={snacks.length === 0 || people.length === 0}>
-                                Registrar Venta
+                            <Button type="submit" disabled={cart.length === 0 || !selectedPersonId}>
+                                Registrar Venta ({formatCurrency(getCartTotal())})
                             </Button>
                         </div>
                     </form>
                 </Card>
             </div>
 
+            {/* Sales List */}
             <div className="space-y-6">
-                <h2 className="text-2xl font-bold text-slate-900">Ventas Recientes</h2>
+                <div className="flex flex-col space-y-4">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
+                        <h2 className="text-2xl font-bold text-slate-900">
+                            Ventas Recientes ({filteredSales.length} resultados)
+                        </h2>
+                        <SearchBar
+                            value={searchTerm}
+                            onChange={handleSearchChange}
+                            placeholder="Buscar por persona, fecha de venta o registro..."
+                            className="w-full sm:w-80"
+                        />
+                    </div>
 
-                {sales.map((sale) => (
+                    {/* Payment Filter */}
+                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                        <div className="flex items-center space-x-2 mb-3">
+                            <Filter className="h-4 w-4 text-gray-600" />
+                            <span className="text-sm font-semibold text-gray-700">Filtrar por Estado de Pago</span>
+                        </div>
+                        <div className="flex flex-wrap gap-3">
+                            <Button
+                                variant={paymentFilter === 'all' ? 'primary' : 'secondary'}
+                                size="sm"
+                                onClick={() => handlePaymentFilterChange('all')}
+                                className={`text-sm transition-all duration-200 ${paymentFilter === 'all'
+                                    ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-md'
+                                    : 'hover:bg-blue-50 hover:border-blue-300'
+                                    }`}
+                            >
+                                <Package className="h-4 w-4 mr-2" />
+                                Todas ({sales.length})
+                            </Button>
+                            <Button
+                                variant={paymentFilter === 'paid' ? 'primary' : 'secondary'}
+                                size="sm"
+                                onClick={() => handlePaymentFilterChange('paid')}
+                                className={`text-sm transition-all duration-200 ${paymentFilter === 'paid'
+                                    ? 'bg-green-600 hover:bg-green-700 text-white shadow-md'
+                                    : 'hover:bg-green-50 hover:border-green-300 text-green-700'
+                                    }`}
+                            >
+                                <CheckCircle className="h-4 w-4 mr-2" />
+                                Pagadas ({sales.filter(s => s.paid === 1).length})
+                            </Button>
+                            <Button
+                                variant={paymentFilter === 'unpaid' ? 'primary' : 'secondary'}
+                                size="sm"
+                                onClick={() => handlePaymentFilterChange('unpaid')}
+                                className={`text-sm transition-all duration-200 ${paymentFilter === 'unpaid'
+                                    ? 'bg-red-600 hover:bg-red-700 text-white shadow-md'
+                                    : 'hover:bg-red-50 hover:border-red-300 text-red-700'
+                                    }`}
+                            >
+                                <AlertCircle className="h-4 w-4 mr-2" />
+                                No Pagadas ({sales.filter(s => s.paid === 0).length})
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+
+                {paginatedSales.map((sale) => (
                     <Card key={sale.id_sale} className="group hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-2">
                         <div className="flex justify-between items-start">
                             <div className="flex items-center space-x-4">
@@ -368,12 +579,20 @@ export default function SalesPage() {
                                 </div>
                                 <div className="flex-1">
                                     <div className="flex items-center space-x-2 mb-1">
-                                        <Package className="h-4 w-4 text-gray-400" />
-                                        <span className="font-bold text-slate-900">{getSnackName(sale.snack_id)}</span>
-                                    </div>
-                                    <div className="flex items-center space-x-2">
                                         <User className="h-4 w-4 text-gray-400" />
-                                        <span className="text-slate-600 font-medium">{getPersonName(sale.person_id)}</span>
+                                        <span className="font-bold text-slate-900">{getPersonName(sale.person_id)}</span>
+                                    </div>
+
+                                    {/* Show items */}
+                                    <div className="space-y-1">
+                                        {sale.items?.map((item) => (
+                                            <div key={item.id_sale_item} className="flex items-center space-x-2 text-sm">
+                                                <Package className="h-3 w-3 text-gray-400" />
+                                                <span className="text-slate-600">
+                                                    {item.snack?.name} x{item.quantity} = {formatCurrency(item.subtotal)}
+                                                </span>
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
                             </div>
@@ -383,7 +602,7 @@ export default function SalesPage() {
                                     {formatCurrency(sale.total)}
                                 </div>
                                 <div className="text-sm text-gray-500">
-                                    Cantidad: {sale.quantity}
+                                    {sale.items?.length || 0} items
                                 </div>
                                 <div className={`text-sm font-medium ${sale.paid === 1 ? 'text-green-600' : 'text-red-600'}`}>
                                     {sale.paid === 1 ? 'Pagado' : 'No pagado'}
@@ -392,15 +611,32 @@ export default function SalesPage() {
                         </div>
 
                         <div className="text-xs text-gray-500 mt-2">
-                            {new Date(sale.created_at).toLocaleString('es-ES')}
+                            Venta: {(() => {
+                                const [year, month, day] = sale.sale_date.split('-').map(Number);
+                                return `${day}/${month}/${year}`;
+                            })()} |
+                            Registro: {new Date(sale.created_at).toLocaleString('es-ES')}
                         </div>
                     </Card>
                 ))}
 
-                {sales.length === 0 && !loading && (
+                {paginatedSales.length === 0 && !loading && (
                     <Card className="text-center py-12">
-                        <p className="text-gray-500 text-lg">No se encontraron ventas. ¡Registra tu primera venta para comenzar!</p>
+                        <p className="text-gray-500 text-lg">
+                            {searchTerm ? 'No se encontraron ventas que coincidan con tu búsqueda.' : 'No se encontraron ventas. ¡Registra tu primera venta para comenzar!'}
+                        </p>
                     </Card>
+                )}
+
+                {/* Pagination */}
+                {totalPages > 1 && (
+                    <div className="mt-8">
+                        <Pagination
+                            currentPage={currentPage}
+                            totalPages={totalPages}
+                            onPageChange={handlePageChange}
+                        />
+                    </div>
                 )}
             </div>
 
@@ -410,7 +646,7 @@ export default function SalesPage() {
                 onClose={() => setConfirmModal({ isOpen: false, saleData: null })}
                 onConfirm={handleConfirmSale}
                 title="Confirmar Venta"
-                message={`¿Estás seguro de que quieres registrar esta venta?`}
+                message={`¿Estás seguro de que quieres registrar esta venta por ${formatCurrency(getCartTotal())}?`}
                 confirmText="Confirmar Venta"
                 cancelText="Cancelar"
                 variant="info"

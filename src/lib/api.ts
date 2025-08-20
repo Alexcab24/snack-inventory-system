@@ -2,6 +2,7 @@ import { supabase } from './supabase';
 import type {
     Snack,
     Person,
+    PersonWithDebt,
     Sale,
     Debt,
     CreateSnackData,
@@ -119,6 +120,37 @@ export const personApi = {
 
         if (error) throw error;
         return data || [];
+    },
+
+    async getAllWithDebts(): Promise<PersonWithDebt[]> {
+        const { data, error } = await supabase
+            .from('person')
+            .select(`
+                *,
+                sales:sale(
+                    id_sale,
+                    total,
+                    paid
+                )
+            `)
+            .order('name', { ascending: true });
+
+        if (error) throw error;
+
+        // Calculate total debt for each person
+        const peopleWithDebts = data?.map(person => {
+            const totalDebt = person.sales?.reduce((sum: number, sale: { id_sale: string; total: number; paid: number }) => {
+                // If sale is not paid (paid = 0), add to debt
+                return sum + (sale.paid === 0 ? sale.total : 0);
+            }, 0) || 0;
+
+            return {
+                ...person,
+                total_debt: totalDebt
+            };
+        }) || [];
+
+        return peopleWithDebts;
     },
 
     async create(personData: CreatePersonData): Promise<Person> {
@@ -243,73 +275,135 @@ export const saleApi = {
             .from('sale')
             .select(`
                 *,
-                snack:snack_id(*),
                 person:person_id(*)
             `)
             .order('created_at', { ascending: false });
 
         if (error) throw error;
-        return data || [];
+
+        // Get items separately to avoid cache issues
+        const salesWithItems = await Promise.all(
+            (data || []).map(async (sale) => {
+                const { data: items } = await supabase
+                    .from('sale_item')
+                    .select(`
+                        *,
+                        snack:snack_id(*)
+                    `)
+                    .eq('sale_id', sale.id_sale);
+
+                return {
+                    ...sale,
+                    items: items || []
+                };
+            })
+        );
+
+        return salesWithItems;
     },
 
     async create(saleData: CreateSaleData): Promise<Sale> {
         console.log('API: Creating sale with data:', saleData);
 
-        // Get snack details to calculate total amount and check stock
-        const { data: snack, error: snackError } = await supabase
-            .from('snack')
-            .select('unit_sale_price, stock')
-            .eq('id_snack', saleData.snack_id)
-            .single();
-
-        console.log('API: Snack lookup result:', { snack, snackError, snack_id: saleData.snack_id });
-
-        if (!snack) throw new Error('Snack not found');
-
-        // Check if there's enough stock
-        if (snack.stock < saleData.quantity) {
-            throw new Error(`Stock insuficiente. Solo hay ${snack.stock} unidades disponibles.`);
+        if (!saleData.items || saleData.items.length === 0) {
+            throw new Error('La venta debe tener al menos un item');
         }
 
-        const total = snack.unit_sale_price * saleData.quantity;
-        const newStock = snack.stock - saleData.quantity;
+        // Validate all items and calculate total
+        let total = 0;
+        const stockUpdates: { id: string; newStock: number }[] = [];
 
-        // Start a transaction-like operation
-        // First, update the stock
-        const { error: stockError } = await supabase
-            .from('snack')
-            .update({ stock: newStock })
-            .eq('id_snack', saleData.snack_id);
+        for (const item of saleData.items) {
+            // Get snack details to calculate total amount and check stock
+            const { data: snack, error: snackError } = await supabase
+                .from('snack')
+                .select('name, unit_sale_price, stock')
+                .eq('id_snack', item.snack_id)
+                .single();
 
-        if (stockError) {
-            console.error('Error updating stock:', stockError);
-            throw new Error('Error al actualizar el stock');
+            if (snackError || !snack) {
+                throw new Error(`Snack no encontrado: ${item.snack_id}`);
+            }
+
+            // Check if there's enough stock
+            if (snack.stock < item.quantity) {
+                throw new Error(`Stock insuficiente para ${snack.name}. Solo hay ${snack.stock} unidades disponibles.`);
+            }
+
+            const subtotal = snack.unit_sale_price * item.quantity;
+            total += subtotal;
+            stockUpdates.push({
+                id: item.snack_id,
+                newStock: snack.stock - item.quantity
+            });
+        }
+
+        // Start transaction-like operation
+        // First, update all stock levels
+        for (const update of stockUpdates) {
+            const { error: stockError } = await supabase
+                .from('snack')
+                .update({ stock: update.newStock })
+                .eq('id_snack', update.id);
+
+            if (stockError) {
+                console.error('Error updating stock:', stockError);
+                throw new Error('Error al actualizar el stock');
+            }
         }
 
         // Then create the sale
-        const { data, error } = await supabase
+        const { data: sale, error: saleError } = await supabase
             .from('sale')
-            .insert({ ...saleData, total })
+            .insert({
+                person_id: saleData.person_id,
+                sale_date: saleData.sale_date,
+                total,
+                paid: saleData.paid
+            })
             .select('*')
             .single();
 
-        if (error) {
-            // If sale creation fails, we should rollback the stock update
-            // For now, we'll just log the error
-            console.error('Error creating sale after stock update:', error);
-            throw error;
+        if (saleError) {
+            console.error('Error creating sale:', saleError);
+            throw saleError;
+        }
+
+        // Create sale items
+        for (const item of saleData.items) {
+            const { data: snack } = await supabase
+                .from('snack')
+                .select('unit_sale_price')
+                .eq('id_snack', item.snack_id)
+                .single();
+
+            const { error: itemError } = await supabase
+                .from('sale_item')
+                .insert({
+                    sale_id: sale.id_sale,
+                    snack_id: item.snack_id,
+                    quantity: item.quantity,
+                    unit_price: snack?.unit_sale_price || 0,
+                    subtotal: (snack?.unit_sale_price || 0) * item.quantity
+                });
+
+            if (itemError) {
+                console.error('Error creating sale item:', itemError);
+                throw new Error('Error al crear items de la venta');
+            }
         }
 
         // If sale is not paid, create a debt record
         if (saleData.paid === 0) {
             await debtApi.create({
-                id_sale: data.id_sale,
+                id_sale: sale.id_sale,
                 amount: total,
                 paid: 'pending'
             });
         }
 
-        return data;
+        // Return the created sale (without items for now to avoid cache issues)
+        return sale;
     },
 
     async update(id: string, saleData: Partial<CreateSaleData>): Promise<Sale> {
@@ -318,6 +412,24 @@ export const saleApi = {
             .update(saleData)
             .eq('id_sale', id)
             .select('*')
+            .single();
+
+        if (error) throw error;
+        return data;
+    },
+
+    async getById(id: string): Promise<Sale> {
+        const { data, error } = await supabase
+            .from('sale')
+            .select(`
+                *,
+                person:person_id(*),
+                items:sale_item(
+                    *,
+                    snack:snack_id(*)
+                )
+            `)
+            .eq('id_sale', id)
             .single();
 
         if (error) throw error;
@@ -343,8 +455,11 @@ export const debtApi = {
                 *,
                 sale:id_sale(
                     *,
-                    snack:snack_id(*),
-                    person:person_id(*)
+                    person:person_id(*),
+                    items:sale_item(
+                        *,
+                        snack:snack_id(*)
+                    )
                 )
             `)
             .order('created_at', { ascending: false });
@@ -361,8 +476,11 @@ export const debtApi = {
                 *,
                 sale:id_sale(
                     *,
-                    snack:snack_id(*),
-                    person:person_id(*)
+                    person:person_id(*),
+                    items:sale_item(
+                        *,
+                        snack:snack_id(*)
+                    )
                 )
             `)
             .single();
@@ -380,8 +498,11 @@ export const debtApi = {
                 *,
                 sale:id_sale(
                     *,
-                    snack:snack_id(*),
-                    person:person_id(*)
+                    person:person_id(*),
+                    items:sale_item(
+                        *,
+                        snack:snack_id(*)
+                    )
                 )
             `)
             .single();
@@ -414,8 +535,11 @@ export const debtApi = {
                 *,
                 sale:id_sale(
                     *,
-                    snack:snack_id(*),
-                    person:person_id(*)
+                    person:person_id(*),
+                    items:sale_item(
+                        *,
+                        snack:snack_id(*)
+                    )
                 )
             `)
             .single();

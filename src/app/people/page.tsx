@@ -6,12 +6,15 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import { SearchBar } from '@/components/ui/SearchBar';
+import { Pagination } from '@/components/ui/Pagination';
 import { Plus, Edit, Trash2, X, User } from 'lucide-react';
 import { personApi } from '@/lib/api';
-import type { Person, CreatePersonData } from '@/types';
+import { useQueryParams, getPaginatedData, getTotalPages, filterBySearch } from '@/lib/utils';
+import type { Person, PersonWithDebt, CreatePersonData } from '@/types';
 
 export default function PeoplePage() {
-    const [people, setPeople] = useState<Person[]>([]);
+    const [people, setPeople] = useState<PersonWithDebt[]>([]);
     const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
     const [editingPerson, setEditingPerson] = useState<Person | null>(null);
@@ -23,6 +26,17 @@ export default function PeoplePage() {
         person: null
     });
 
+    // Query params
+    const { getParam, setMultipleParams } = useQueryParams();
+    const searchTerm = getParam('search', '');
+    const currentPage = parseInt(getParam('page', '1'));
+    const pageSize = 10;
+
+    // Filtered and paginated data
+    const filteredPeople = filterBySearch(people, searchTerm, ['name']);
+    const paginatedPeople = getPaginatedData(filteredPeople, currentPage, pageSize);
+    const totalPages = getTotalPages(filteredPeople.length, pageSize);
+
     useEffect(() => {
         loadPeople();
     }, []);
@@ -30,7 +44,7 @@ export default function PeoplePage() {
     const loadPeople = async () => {
         try {
             setLoading(true);
-            const data = await personApi.getAll();
+            const data = await personApi.getAllWithDebts();
             setPeople(data);
         } catch (error) {
             toast.error('Error al cargar personas');
@@ -121,6 +135,14 @@ export default function PeoplePage() {
         setShowForm(false);
     };
 
+    const handleSearchChange = (value: string) => {
+        setMultipleParams({ search: value, page: '1' });
+    };
+
+    const handlePageChange = (page: number) => {
+        setMultipleParams({ page: page.toString() });
+    };
+
     if (loading) {
         return (
             <div className="flex justify-center items-center h-64">
@@ -178,8 +200,21 @@ export default function PeoplePage() {
                 </Card>
             </div>
 
+            {/* Search and Results Header */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
+                <h2 className="text-2xl font-bold text-slate-900">
+                    Personas ({filteredPeople.length} resultados)
+                </h2>
+                <SearchBar
+                    value={searchTerm}
+                    onChange={handleSearchChange}
+                    placeholder="Buscar por nombre..."
+                    className="w-full sm:w-80"
+                />
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 card-grid">
-                {people.map((person) => (
+                {paginatedPeople.map((person) => (
                     <Card key={person.id_person} className="group hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-2">
                         <div className="flex justify-between items-start">
                             <div className="flex items-center space-x-4">
@@ -195,6 +230,11 @@ export default function PeoplePage() {
                                     <p className="text-sm text-slate-500 font-medium">
                                         Agregado: {new Date(person.created_at).toLocaleDateString('es-ES')}
                                     </p>
+                                    {person.total_debt > 0 && (
+                                        <p className="text-sm font-semibold text-red-600 mt-1">
+                                            Deuda: ${person.total_debt.toFixed(2)}
+                                        </p>
+                                    )}
                                 </div>
                             </div>
                             <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -220,10 +260,23 @@ export default function PeoplePage() {
                 ))}
             </div>
 
-            {people.length === 0 && !loading && (
+            {paginatedPeople.length === 0 && !loading && (
                 <Card className="text-center py-12">
-                    <p className="text-slate-500 text-lg font-medium">No se encontraron personas. ¡Agrega tu primera persona para comenzar!</p>
+                    <p className="text-slate-500 text-lg font-medium">
+                        {searchTerm ? 'No se encontraron personas que coincidan con tu búsqueda.' : 'No se encontraron personas. ¡Agrega tu primera persona para comenzar!'}
+                    </p>
                 </Card>
+            )}
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+                <div className="mt-8">
+                    <Pagination
+                        currentPage={currentPage}
+                        totalPages={totalPages}
+                        onPageChange={handlePageChange}
+                    />
+                </div>
             )}
 
             {/* Delete Confirmation Modal */}

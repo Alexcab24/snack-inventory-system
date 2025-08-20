@@ -23,17 +23,32 @@ export interface Person {
     updated_at: string;
 }
 
+export interface PersonWithDebt extends Person {
+    total_debt: number;
+}
+
+export interface SaleItem {
+    id_sale_item: string;
+    sale_id: string;
+    snack_id: string;
+    quantity: number;
+    unit_price: number;
+    subtotal: number;
+    created_at: string;
+    // Relations
+    snack?: Snack;
+}
+
 export interface Sale {
     id_sale: string;
-    snack_id: string;
     person_id: string;
+    sale_date: string;
     created_at: string;
-    quantity: number;
     total: number;
     paid: number; // 0 = false, 1 = true
     // Relations
-    snack?: Snack;
     person?: Person;
+    items?: SaleItem[];
 }
 
 export interface Debt {
@@ -68,9 +83,14 @@ export interface CreatePersonData {
     name: string;
 }
 
-export interface CreateSaleData {
+export interface CreateSaleItemData {
     snack_id: string;
-    person_id: string;
     quantity: number;
+}
+
+export interface CreateSaleData {
+    person_id: string;
+    items: CreateSaleItemData[];
     paid: number; // 0 = false, 1 = true
+    sale_date: string;
 }

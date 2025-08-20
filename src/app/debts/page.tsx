@@ -6,9 +6,11 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import { SearchBar } from '@/components/ui/SearchBar';
+import { Pagination } from '@/components/ui/Pagination';
 import { CreditCard, User, Package, CheckCircle } from 'lucide-react';
 import { debtApi } from '@/lib/api';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, useQueryParams, getPaginatedData, getTotalPages } from '@/lib/utils';
 import type { Debt } from '@/types';
 
 export default function DebtsPage() {
@@ -23,6 +25,35 @@ export default function DebtsPage() {
         action: null
     });
 
+    // Query params
+    const { getParam, setMultipleParams } = useQueryParams();
+    const searchTerm = getParam('search', '');
+    const currentPage = parseInt(getParam('page', '1'));
+    const pageSize = 10;
+
+    // Filtered and paginated data
+    const filteredDebts = searchTerm.trim() ? debts.filter(debt => {
+        const personName = debt.sale?.person?.name || '';
+        const createdDate = debt.created_at ? new Date(debt.created_at).toLocaleString('es-ES') : '';
+        const searchLower = searchTerm.toLowerCase();
+
+        const matches = personName.toLowerCase().includes(searchLower) ||
+            createdDate.includes(searchLower);
+
+        if (searchTerm && (personName || createdDate)) {
+            console.log('Search debug:', {
+                searchTerm,
+                personName,
+                createdDate,
+                matches
+            });
+        }
+
+        return matches;
+    }) : debts;
+    const paginatedDebts = getPaginatedData(filteredDebts, currentPage, pageSize);
+    const totalPages = getTotalPages(filteredDebts.length, pageSize);
+
     useEffect(() => {
         loadDebts();
     }, []);
@@ -32,6 +63,9 @@ export default function DebtsPage() {
             setLoading(true);
             const data = await debtApi.getAll();
             console.log('Loaded debts:', data);
+            if (data.length > 0) {
+                console.log('Sample debt structure:', data[0]);
+            }
             setDebts(data);
         } catch (error) {
             toast.error('Error al cargar deudas');
@@ -94,11 +128,17 @@ export default function DebtsPage() {
 
 
 
-    const getSnackName = (debt: Debt) => {
-        console.log('Getting snack name for debt:', debt);
-        const snackName = debt.sale?.snack?.name || 'Unknown Snack';
-        console.log('Snack name:', snackName);
-        return snackName;
+    const getSnackNames = (debt: Debt) => {
+        console.log('Getting snack names for debt:', debt);
+        if (!debt.sale?.items || debt.sale.items.length === 0) {
+            return ['Unknown Snack'];
+        }
+
+        const snackNames = debt.sale.items.map(item =>
+            item.snack?.name || 'Unknown Snack'
+        );
+        console.log('Snack names:', snackNames);
+        return snackNames;
     };
 
     const getPersonName = (debt: Debt) => {
@@ -120,6 +160,14 @@ export default function DebtsPage() {
 
     const unpaidDebts = debts.filter(debt => debt.paid === 'pending');
     const paidDebts = debts.filter(debt => debt.paid === 'paid');
+
+    const handleSearchChange = (value: string) => {
+        setMultipleParams({ search: value, page: '1' });
+    };
+
+    const handlePageChange = (page: number) => {
+        setMultipleParams({ page: page.toString() });
+    };
 
     if (loading) {
         return (
@@ -146,10 +194,20 @@ export default function DebtsPage() {
 
             {/* Outstanding Debts */}
             <div className="space-y-4">
-                <h2 className="text-2xl font-bold text-slate-900">Deudas Pendientes</h2>
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
+                    <h2 className="text-2xl font-bold text-slate-900">
+                        Deudas Pendientes ({filteredDebts.filter(d => d.paid === 'pending').length} resultados)
+                    </h2>
+                    <SearchBar
+                        value={searchTerm}
+                        onChange={handleSearchChange}
+                        placeholder="Buscar por persona o fecha..."
+                        className="w-full sm:w-80"
+                    />
+                </div>
 
-                {unpaidDebts.length > 0 ? (
-                    unpaidDebts.map((debt) => (
+                {filteredDebts.filter(d => d.paid === 'pending').length > 0 ? (
+                    paginatedDebts.filter(d => d.paid === 'pending').map((debt) => (
                         <Card key={debt.id_debt} className="group hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-2 relative border-l-4 border-l-red-500">
                             <div className="flex justify-between items-start">
                                 <div className="flex items-center space-x-4">
@@ -161,7 +219,7 @@ export default function DebtsPage() {
                                     <div>
                                         <div className="flex items-center space-x-2">
                                             <Package className="h-4 w-4 text-gray-400" />
-                                            <span className="font-medium">{getSnackName(debt)}</span>
+                                            <span className="font-medium">{getSnackNames(debt).join(', ')}</span>
                                         </div>
                                         <div className="flex items-center space-x-2 mt-1">
                                             <User className="h-4 w-4 text-gray-400" />
@@ -285,8 +343,21 @@ export default function DebtsPage() {
                     ))
                 ) : (
                     <Card className="text-center py-12">
-                        <p className="text-gray-500 text-lg">No hay deudas pendientes!</p>
+                        <p className="text-gray-500 text-lg">
+                            {searchTerm ? 'No se encontraron deudas pendientes que coincidan con tu búsqueda.' : 'No hay deudas pendientes!'}
+                        </p>
                     </Card>
+                )}
+
+                {/* Pagination for unpaid debts */}
+                {totalPages > 1 && (
+                    <div className="mt-8">
+                        <Pagination
+                            currentPage={currentPage}
+                            totalPages={totalPages}
+                            onPageChange={handlePageChange}
+                        />
+                    </div>
                 )}
             </div>
 
@@ -307,7 +378,7 @@ export default function DebtsPage() {
                                     <div>
                                         <div className="flex items-center space-x-2">
                                             <Package className="h-4 w-4 text-gray-400" />
-                                            <span className="font-medium">{getSnackName(debt)}</span>
+                                            <span className="font-medium">{getSnackNames(debt).join(', ')}</span>
                                         </div>
                                         <div className="flex items-center space-x-2 mt-1">
                                             <User className="h-4 w-4 text-gray-400" />
