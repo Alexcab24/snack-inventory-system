@@ -14,6 +14,8 @@
   --success: #059669;
   --warning: #d97706;
   --danger: #dc2626;
+  --green-25: #f0fdf4;
+  --red-25: #fef2f2;
 }
 
 @theme inline {
@@ -26,6 +28,23 @@
   --color-border-light: var(--border-light);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+}
+
+/* Custom color utilities */
+.bg-green-25 {
+  background-color: var(--green-25);
+}
+
+.bg-red-25 {
+  background-color: var(--red-25);
+}
+
+.hover\:bg-green-25:hover {
+  background-color: var(--green-25);
+}
+
+.hover\:bg-red-25:hover {
+  background-color: var(--red-25);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -198,35 +217,42 @@ body {
 }
 
 /* Mobile menu animations */
+@keyframes slideInFromTop {
+  from {
+    opacity: 0;
+    transform: translateY(-100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .mobile-menu-enter {
-  animation: mobileMenuEnter 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: slideInFromTop 0.3s ease-out;
 }
 
-@keyframes mobileMenuEnter {
-  from {
-    opacity: 0;
-    transform: translateY(-10px) scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
+.mobile-menu-item {
+  animation: fadeInUp 0.3s ease-out;
+  animation-fill-mode: both;
 }
 
-.mobile-menu-exit {
-  animation: mobileMenuExit 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-@keyframes mobileMenuExit {
-  from {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-  to {
-    opacity: 0;
-    transform: translateY(-10px) scale(0.95);
-  }
-}
+/* Staggered animation for menu items */
+.mobile-menu-item:nth-child(1) { animation-delay: 0ms; }
+.mobile-menu-item:nth-child(2) { animation-delay: 50ms; }
+.mobile-menu-item:nth-child(3) { animation-delay: 100ms; }
+.mobile-menu-item:nth-child(4) { animation-delay: 150ms; }
 
 /* Custom focus styles */
 .focus-ring:focus {

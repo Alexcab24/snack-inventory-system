@@ -4,8 +4,11 @@ import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { CreditCard, User, Package, CheckCircle } from 'lucide-react';
 import { debtApi } from '@/lib/api';
+import { formatCurrency } from '@/lib/utils';
 import type { Debt } from '@/types';
 
 export default function DebtsPage() {
@@ -14,6 +17,11 @@ export default function DebtsPage() {
     const [showPaymentForm, setShowPaymentForm] = useState<string | null>(null);
     const [paymentAmount, setPaymentAmount] = useState('');
     const [processingPayment, setProcessingPayment] = useState<string | null>(null);
+    const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; debt: Debt | null; action: 'markPaid' | 'addPayment' | null }>({
+        isOpen: false,
+        debt: null,
+        action: null
+    });
 
     useEffect(() => {
         loadDebts();
@@ -33,14 +41,22 @@ export default function DebtsPage() {
         }
     };
 
-    const handleMarkAsPaid = async (id: string) => {
+    const handleMarkAsPaidClick = (debt: Debt) => {
+        setConfirmModal({ isOpen: true, debt, action: 'markPaid' });
+    };
+
+    const handleMarkAsPaidConfirm = async () => {
+        if (!confirmModal.debt) return;
+
         try {
-            await debtApi.markAsPaid(id);
+            await debtApi.markAsPaid(confirmModal.debt.id_debt);
             toast.success('Deuda marcada como pagada exitosamente');
             loadDebts();
         } catch (error) {
             toast.error('Error al marcar deuda como pagada');
             console.error('Error marking debt as paid:', error);
+        } finally {
+            setConfirmModal({ isOpen: false, debt: null, action: null });
         }
     };
 
@@ -76,12 +92,7 @@ export default function DebtsPage() {
         }
     };
 
-    const formatCurrency = (amount: number) => {
-        return new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency: 'USD',
-        }).format(amount);
-    };
+
 
     const getSnackName = (debt: Debt) => {
         console.log('Getting snack name for debt:', debt);
@@ -185,7 +196,7 @@ export default function DebtsPage() {
                                             </Button>
                                             <Button
                                                 size="sm"
-                                                onClick={() => handleMarkAsPaid(debt.id_debt)}
+                                                onClick={() => handleMarkAsPaidClick(debt)}
                                                 className="bg-green-600 hover:bg-green-700"
                                             >
                                                 <CheckCircle className="h-4 w-4 mr-2" />
@@ -198,8 +209,8 @@ export default function DebtsPage() {
 
                             {/* Payment Form */}
                             <div className={`mt-4 overflow-hidden transition-all duration-300 ease-in-out ${showPaymentForm === debt.id_debt
-                                    ? 'max-h-96 opacity-100'
-                                    : 'max-h-0 opacity-0'
+                                ? 'max-h-96 opacity-100'
+                                : 'max-h-0 opacity-0'
                                 }`}>
                                 <div className="p-4 bg-gray-50 rounded-lg border transform transition-all duration-300 ease-in-out ${
                                     showPaymentForm === debt.id_debt 
@@ -213,23 +224,28 @@ export default function DebtsPage() {
                                         <div className="flex space-x-2">
                                             <div className="flex-1">
                                                 <div className="flex space-x-2">
-                                                    <input
+                                                    <Input
                                                         type="number"
                                                         step="0.01"
                                                         min="0"
                                                         max={getRemainingAmount(debt)}
                                                         value={paymentAmount}
                                                         onChange={(e) => {
-                                                            const value = parseFloat(e.target.value);
-                                                            const maxAmount = getRemainingAmount(debt);
-                                                            if (value > maxAmount) {
-                                                                setPaymentAmount(maxAmount.toString());
-                                                            } else {
-                                                                setPaymentAmount(e.target.value);
+                                                            const inputValue = e.target.value;
+                                                            if (inputValue === '') {
+                                                                setPaymentAmount('');
+                                                                return;
+                                                            }
+                                                            const value = parseFloat(inputValue);
+                                                            if (!isNaN(value)) {
+                                                                const maxAmount = getRemainingAmount(debt);
+                                                                const finalValue = Math.min(value, maxAmount);
+                                                                setPaymentAmount(finalValue.toString());
                                                             }
                                                         }}
                                                         placeholder={`Máximo: ${formatCurrency(getRemainingAmount(debt))}`}
-                                                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                        className="flex-1"
+                                                        enableNumericHandling
                                                     />
                                                     <Button
                                                         size="sm"
@@ -269,7 +285,7 @@ export default function DebtsPage() {
                     ))
                 ) : (
                     <Card className="text-center py-12">
-                        <p className="text-gray-500 text-lg">No outstanding debts!</p>
+                        <p className="text-gray-500 text-lg">No hay deudas pendientes!</p>
                     </Card>
                 )}
             </div>
@@ -325,9 +341,21 @@ export default function DebtsPage() {
 
             {debts.length === 0 && !loading && (
                 <Card className="text-center py-12">
-                    <p className="text-gray-500 text-lg">No debts found.</p>
+                    <p className="text-gray-500 text-lg">No se encontraron deudas.</p>
                 </Card>
             )}
+
+            {/* Confirmation Modal */}
+            <ConfirmModal
+                isOpen={confirmModal.isOpen}
+                onClose={() => setConfirmModal({ isOpen: false, debt: null, action: null })}
+                onConfirm={handleMarkAsPaidConfirm}
+                title="Confirmar Pago Completo"
+                message={`¿Estás seguro de que quieres marcar esta deuda como completamente pagada?`}
+                confirmText="Confirmar Pago"
+                cancelText="Cancelar"
+                variant="info"
+            />
         </div>
     );
 }

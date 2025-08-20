@@ -58,7 +58,7 @@ export default function Home() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 card-grid">
-        {features.map((feature, index) => (
+        {features.map((feature) => (
           <Link key={feature.name} href={feature.href}>
             <Card className="group hover:shadow-2xl transition-all duration-500 cursor-pointer border-2 border-transparent hover:border-blue-200 hover:scale-105 transform hover:-translate-y-2">
               <div className="flex items-start space-x-4 sm:space-x-6">

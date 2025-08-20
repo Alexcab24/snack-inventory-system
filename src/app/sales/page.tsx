@@ -6,8 +6,10 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
-import { Plus, X, Package, User, DollarSign, RefreshCw } from 'lucide-react';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import { Plus, X, Package, User, DollarSign, RefreshCw, CheckCircle, Clock } from 'lucide-react';
 import { saleApi, snackApi, personApi } from '@/lib/api';
+import { formatCurrency } from '@/lib/utils';
 import type { Sale, Snack, Person, CreateSaleData } from '@/types';
 
 export default function SalesPage() {
@@ -26,6 +28,10 @@ export default function SalesPage() {
     // Estados separados para los selectores (strings)
     const [selectedSnackId, setSelectedSnackId] = useState<string>('');
     const [selectedPersonId, setSelectedPersonId] = useState<string>('');
+    const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; saleData: CreateSaleData | null }>({
+        isOpen: false,
+        saleData: null
+    });
 
     useEffect(() => {
         loadData();
@@ -83,23 +89,33 @@ export default function SalesPage() {
             return;
         }
 
+        // Asegurar que los valores estén actualizados
+        const saleData = {
+            ...formData,
+            snack_id: selectedSnackId,
+            person_id: selectedPersonId
+        };
+
+        console.log('Preparing sale data:', saleData);
+
+        // Mostrar modal de confirmación
+        setConfirmModal({ isOpen: true, saleData });
+    };
+
+    const handleConfirmSale = async () => {
+        if (!confirmModal.saleData) return;
+
         try {
-            // Asegurar que los valores estén actualizados
-            const saleData = {
-                ...formData,
-                snack_id: selectedSnackId,
-                person_id: selectedPersonId
-            };
-
-            console.log('Sending sale data:', saleData);
-
-            await saleApi.create(saleData);
+            console.log('Creating sale with data:', confirmModal.saleData);
+            await saleApi.create(confirmModal.saleData);
             toast.success('Venta registrada exitosamente');
             resetForm();
             loadData();
         } catch (error) {
             toast.error('Error al registrar venta');
             console.error('Error creating sale:', error);
+        } finally {
+            setConfirmModal({ isOpen: false, saleData: null });
         }
     };
 
@@ -115,12 +131,7 @@ export default function SalesPage() {
         setShowForm(false);
     };
 
-    const formatCurrency = (amount: number) => {
-        return new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency: 'USD',
-        }).format(amount);
-    };
+
 
     const getSnackName = (snackId: string) => {
         return snacks.find(s => s.id_snack === snackId)?.name || 'Unknown Snack';
@@ -187,14 +198,17 @@ export default function SalesPage() {
                             <Select
                                 label={`Seleccionar Snack (${snacks.length} disponibles)`}
                                 value={selectedSnackId}
-                                onChange={(e) => {
-                                    setSelectedSnackId(e.target.value);
-                                    setFormData({ ...formData, snack_id: e.target.value });
+                                onChange={(value) => {
+                                    setSelectedSnackId(value as string);
+                                    setFormData({ ...formData, snack_id: value as string });
                                 }}
                                 options={loading ? [{ value: '', label: 'Cargando snacks...' }] : snacks.length > 0 ? snacks.map(snack => ({
                                     value: snack.id_snack,
-                                    label: `${snack.name} - ${formatCurrency(snack.sale_price)} (Stock: ${snack.stock})`
+                                    label: snack.name,
+                                    description: `${formatCurrency(snack.unit_sale_price)} - Stock: ${snack.stock} unidades`,
+                                    icon: <Package className="h-4 w-4" />
                                 })) : [{ value: '', label: 'No hay snacks disponibles' }]}
+                                placeholder="Seleccionar snack"
                                 required
                                 disabled={loading || snacks.length === 0}
                             />
@@ -202,14 +216,16 @@ export default function SalesPage() {
                             <Select
                                 label={`Seleccionar Persona (${people.length} disponibles)`}
                                 value={selectedPersonId}
-                                onChange={(e) => {
-                                    setSelectedPersonId(e.target.value);
-                                    setFormData({ ...formData, person_id: e.target.value });
+                                onChange={(value) => {
+                                    setSelectedPersonId(value as string);
+                                    setFormData({ ...formData, person_id: value as string });
                                 }}
                                 options={loading ? [{ value: '', label: 'Cargando personas...' }] : people.length > 0 ? people.map(person => ({
                                     value: person.id_person,
-                                    label: person.name
+                                    label: person.name,
+                                    icon: <User className="h-4 w-4" />
                                 })) : [{ value: '', label: 'No hay personas disponibles' }]}
+                                placeholder="Seleccionar persona"
                                 required
                                 disabled={loading || people.length === 0}
                             />
@@ -220,21 +236,85 @@ export default function SalesPage() {
                             type="number"
                             min="1"
                             value={formData.quantity}
-                            onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) || 1 })}
+                            onChange={(e) => setFormData({ ...formData, quantity: parseFloat(e.target.value) || 1 })}
+                            enableNumericHandling
                             required
                         />
 
-                        <div className="flex items-center space-x-2">
-                            <input
-                                type="checkbox"
-                                id="paid"
-                                checked={formData.paid === 1}
-                                onChange={(e) => setFormData({ ...formData, paid: e.target.checked ? 1 : 0 })}
-                                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                            />
-                            <label htmlFor="paid" className="text-sm font-medium text-gray-700">
-                                Marcar como pagado
-                            </label>
+                        {/* Payment Status Toggle */}
+                        <div className="space-y-3">
+                            <label className="text-sm font-medium text-gray-700">Estado de Pago</label>
+                            <div className="flex space-x-4">
+                                <button
+                                    type="button"
+                                    onClick={() => setFormData({ ...formData, paid: 1 })}
+                                    className={`flex-1 flex items-center justify-center space-x-3 py-4 px-6 rounded-xl border-2 transition-all duration-300 ${formData.paid === 1
+                                        ? 'border-green-500 bg-green-50 text-green-700 shadow-lg shadow-green-100'
+                                        : 'border-gray-200 bg-white text-gray-500 hover:border-green-300 hover:bg-green-25 hover:shadow-md'
+                                        }`}
+                                >
+                                    <CheckCircle className={`w-5 h-5 transition-all duration-300 ${formData.paid === 1 ? 'text-green-600' : 'text-gray-400'
+                                        }`} />
+                                    <div className="text-center">
+                                        <div className="font-semibold">Pagado</div>
+                                        <div className="text-xs opacity-75">Pago inmediato</div>
+                                    </div>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setFormData({ ...formData, paid: 0 })}
+                                    className={`flex-1 flex items-center justify-center space-x-3 py-4 px-6 rounded-xl border-2 transition-all duration-300 ${formData.paid === 0
+                                        ? 'border-red-500 bg-red-50 text-red-700 shadow-lg shadow-red-100'
+                                        : 'border-gray-200 bg-white text-gray-500 hover:border-red-300 hover:bg-red-25 hover:shadow-md'
+                                        }`}
+                                >
+                                    <Clock className={`w-5 h-5 transition-all duration-300 ${formData.paid === 0 ? 'text-red-600' : 'text-gray-400'
+                                        }`} />
+                                    <div className="text-center">
+                                        <div className="font-semibold">Pendiente</div>
+                                        <div className="text-xs opacity-75">Deuda futura</div>
+                                    </div>
+                                </button>
+                            </div>
+
+                            {/* Payment Status Info */}
+                            <div className={`p-4 rounded-xl border-2 transition-all duration-300 ${formData.paid === 1
+                                ? 'border-green-200 bg-green-25 shadow-sm'
+                                : 'border-red-200 bg-red-25 shadow-sm'
+                                }`}>
+                                <div className="flex items-start space-x-3">
+                                    {formData.paid === 1 ? (
+                                        <>
+                                            <div className="flex-shrink-0 mt-0.5">
+                                                <CheckCircle className="w-5 h-5 text-green-600" />
+                                            </div>
+                                            <div>
+                                                <div className="text-sm font-semibold text-green-800">
+                                                    Pago Inmediato
+                                                </div>
+                                                <div className="text-sm text-green-700 mt-1">
+                                                    La venta se marcará como pagada y se registrará en el historial de ventas completadas.
+                                                </div>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <div className="flex-shrink-0 mt-0.5">
+                                                <Clock className="w-5 h-5 text-red-600" />
+                                            </div>
+                                            <div>
+                                                <div className="text-sm font-semibold text-red-800">
+                                                    Deuda Pendiente
+                                                </div>
+                                                <div className="text-sm text-red-700 mt-1">
+                                                    Se creará una deuda que aparecerá en la sección de deudas para seguimiento posterior.
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
                         </div>
 
                         {(snacks.length === 0 || people.length === 0) && (
@@ -319,10 +399,22 @@ export default function SalesPage() {
 
                 {sales.length === 0 && !loading && (
                     <Card className="text-center py-12">
-                        <p className="text-gray-500 text-lg">No sales found. Record your first sale to get started!</p>
+                        <p className="text-gray-500 text-lg">No se encontraron ventas. ¡Registra tu primera venta para comenzar!</p>
                     </Card>
                 )}
             </div>
+
+            {/* Sale Confirmation Modal */}
+            <ConfirmModal
+                isOpen={confirmModal.isOpen}
+                onClose={() => setConfirmModal({ isOpen: false, saleData: null })}
+                onConfirm={handleConfirmSale}
+                title="Confirmar Venta"
+                message={`¿Estás seguro de que quieres registrar esta venta?`}
+                confirmText="Confirmar Venta"
+                cancelText="Cancelar"
+                variant="info"
+            />
         </div>
     );
 }

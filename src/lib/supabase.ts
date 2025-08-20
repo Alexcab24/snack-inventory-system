@@ -17,30 +17,45 @@ export type Database = {
                 Row: {
                     id_snack: string;
                     name: string;
-                    purchase_price: number;
-                    sale_price: number;
-                    profit_margin: number;
-                    stock: number;
+                    // Purchase information
+                    purchase_type: string; // 'box' or 'bag'
+                    units_per_container: number; // units per box or bag
+                    container_cost: number; // cost of box or bag
+                    containers_purchased: number; // cantidad de cajas/fundas compradas
+                    // Unit pricing
+                    unit_cost: number; // Calculated: container_cost / units_per_container
+                    unit_sale_price: number;
+                    profit_margin_per_unit: number; // Calculated: unit_sale_price - unit_cost
+                    // Stock tracking
+                    stock: number; // Total units available (calculated: containers_purchased * units_per_container)
                     created_at: string;
                     updated_at: string;
                 };
                 Insert: {
                     id_snack?: string;
                     name: string;
-                    purchase_price: number;
-                    sale_price: number;
-                    profit_margin?: number;
-                    stock: number;
+                    purchase_type: string; // 'box' or 'bag'
+                    units_per_container: number;
+                    container_cost: number;
+                    containers_purchased: number;
+                    unit_cost?: number; // Auto-calculated
+                    unit_sale_price: number;
+                    profit_margin_per_unit?: number; // Auto-calculated
+                    stock?: number; // Auto-calculated
                     created_at?: string;
                     updated_at?: string;
                 };
                 Update: {
                     id_snack?: string;
                     name?: string;
-                    purchase_price?: number;
-                    sale_price?: number;
-                    profit_margin?: number;
-                    stock?: number;
+                    purchase_type?: string; // 'box' or 'bag'
+                    units_per_container?: number;
+                    container_cost?: number;
+                    containers_purchased?: number;
+                    unit_cost?: number; // Auto-calculated
+                    unit_sale_price?: number;
+                    profit_margin_per_unit?: number; // Auto-calculated
+                    stock?: number; // Auto-calculated
                     created_at?: string;
                     updated_at?: string;
                 };

@@ -23,11 +23,19 @@ export const snackApi = {
     },
 
     async create(snackData: CreateSnackData): Promise<Snack> {
-        const profit_margin = (snackData.sale_price - snackData.purchase_price) * snackData.stock;
+        // Calculate unit cost, profit margin, and stock
+        const unit_cost = snackData.container_cost / snackData.units_per_container;
+        const profit_margin_per_unit = snackData.unit_sale_price - unit_cost;
+        const stock = snackData.containers_purchased * snackData.units_per_container;
 
         const { data, error } = await supabase
             .from('snack')
-            .insert({ ...snackData, profit_margin })
+            .insert({
+                ...snackData,
+                unit_cost,
+                profit_margin_per_unit,
+                stock
+            })
             .select()
             .single();
 
@@ -39,7 +47,7 @@ export const snackApi = {
         console.log('API: Updating snack with ID:', id);
         console.log('API: Update data:', snackData);
 
-        // First, get the current snack data to calculate profit_margin correctly
+        // First, get the current snack data to calculate values correctly
         const { data: currentSnack, error: fetchError } = await supabase
             .from('snack')
             .select('*')
@@ -61,13 +69,23 @@ export const snackApi = {
 
         console.log('API: Merged data:', updatedData);
 
-        // Calculate profit_margin with the merged data
-        const profit_margin = (updatedData.sale_price - updatedData.purchase_price) * updatedData.stock;
-        console.log('API: Calculated profit_margin:', profit_margin);
+        // Calculate unit cost, profit margin, and stock with the merged data
+        const unit_cost = updatedData.container_cost / updatedData.units_per_container;
+        const profit_margin_per_unit = updatedData.unit_sale_price - unit_cost;
+        const stock = updatedData.containers_purchased * updatedData.units_per_container;
+
+        console.log('API: Calculated unit_cost:', unit_cost);
+        console.log('API: Calculated profit_margin_per_unit:', profit_margin_per_unit);
+        console.log('API: Calculated stock:', stock);
 
         const { data, error } = await supabase
             .from('snack')
-            .update({ ...snackData, profit_margin })
+            .update({
+                ...snackData,
+                unit_cost,
+                profit_margin_per_unit,
+                stock
+            })
             .eq('id_snack', id)
             .select()
             .single();
@@ -126,13 +144,72 @@ export const personApi = {
         return data;
     },
 
+    async canDelete(id: string): Promise<{ canDelete: boolean; reason?: string }> {
+        try {
+            // Check if person has any sales
+            const { data: sales, error: salesError } = await supabase
+                .from('sale')
+                .select('id_sale')
+                .eq('person_id', id)
+                .limit(1);
+
+            if (salesError) {
+                console.error('API: Error checking sales:', salesError);
+                return { canDelete: false, reason: 'Error al verificar ventas asociadas' };
+            }
+
+            if (sales && sales.length > 0) {
+                return { canDelete: false, reason: 'Esta persona tiene ventas asociadas' };
+            }
+
+            // Check if person has any debts (via sales)
+            const { data: debts, error: debtsError } = await supabase
+                .from('debt')
+                .select(`
+                    id_debt,
+                    sale:id_sale(
+                        person_id
+                    )
+                `)
+                .eq('sale.person_id', id)
+                .limit(1);
+
+            if (debtsError) {
+                console.error('API: Error checking debts:', debtsError);
+                return { canDelete: false, reason: 'Error al verificar deudas asociadas' };
+            }
+
+            if (debts && debts.length > 0) {
+                return { canDelete: false, reason: 'Esta persona tiene deudas asociadas' };
+            }
+
+            return { canDelete: true };
+        } catch (error) {
+            console.error('API: Error in canDelete check:', error);
+            return { canDelete: false, reason: 'Error al verificar si se puede eliminar' };
+        }
+    },
+
     async delete(id: string): Promise<void> {
+        console.log('API: Attempting to delete person with ID:', id);
+
         const { error } = await supabase
             .from('person')
             .delete()
             .eq('id_person', id);
 
-        if (error) throw error;
+        if (error) {
+            console.error('API: Error deleting person:', error);
+
+            // Check if it's a foreign key constraint error
+            if (error.code === '23503') {
+                throw new Error('No se puede eliminar esta persona porque tiene ventas o deudas asociadas');
+            }
+
+            throw error;
+        }
+
+        console.log('API: Person deleted successfully');
     }
 };
 
@@ -177,7 +254,7 @@ export const saleApi = {
         // Get snack details to calculate total amount and check stock
         const { data: snack, error: snackError } = await supabase
             .from('snack')
-            .select('sale_price, stock')
+            .select('unit_sale_price, stock')
             .eq('id_snack', saleData.snack_id)
             .single();
 
@@ -190,7 +267,7 @@ export const saleApi = {
             throw new Error(`Stock insuficiente. Solo hay ${snack.stock} unidades disponibles.`);
         }
 
-        const total = snack.sale_price * saleData.quantity;
+        const total = snack.unit_sale_price * saleData.quantity;
         const newStock = snack.stock - saleData.quantity;
 
         // Start a transaction-like operation
@@ -356,10 +433,10 @@ export const debtApi = {
 // Reports
 export const reportsApi = {
     async getReports(): Promise<Reports> {
-        // Get total investment (sum of all snack purchase prices * stock)
+        // Get total investment (sum of all snack unit costs * stock)
         const { data: snacks } = await supabase
             .from('snack')
-            .select('purchase_price, stock');
+            .select('unit_cost, stock');
 
         // Get total sales
         const { data: sales } = await supabase
@@ -372,7 +449,7 @@ export const reportsApi = {
             .select('amount')
             .eq('paid', 'pending');
 
-        const total_investment = snacks?.reduce((sum, snack) => sum + (snack.purchase_price * snack.stock), 0) || 0;
+        const total_investment = snacks?.reduce((sum, snack) => sum + (snack.unit_cost * snack.stock), 0) || 0;
         const total_sales = sales?.reduce((sum, sale) => sum + sale.total, 0) || 0;
         const total_debts = debts?.reduce((sum, debt) => sum + debt.amount, 0) || 0;
         const total_profit = total_sales - total_investment;

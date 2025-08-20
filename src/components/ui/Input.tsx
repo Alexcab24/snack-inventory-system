@@ -1,14 +1,71 @@
-import { InputHTMLAttributes, forwardRef } from 'react';
+import { InputHTMLAttributes, forwardRef, useState, useEffect } from 'react';
 import { clsx } from 'clsx';
 
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
     label?: string;
     error?: string;
+    enableNumericHandling?: boolean; // Enable automatic numeric input handling
 }
 
 const Input = forwardRef<HTMLInputElement, InputProps>(
-    ({ className, label, error, id, ...props }, ref) => {
+    ({ className, label, error, id, enableNumericHandling, onChange, value, ...props }, ref) => {
         const inputId = id || `input-${Math.random().toString(36).substr(2, 9)}`;
+        const [displayValue, setDisplayValue] = useState(value);
+
+        // Update display value when prop value changes
+        useEffect(() => {
+            setDisplayValue(value);
+        }, [value]);
+
+        const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+            const inputValue = e.target.value;
+
+            // Handle numeric inputs with better UX
+            if (enableNumericHandling && props.type === 'number') {
+                // Allow empty string for clearing
+                if (inputValue === '') {
+                    setDisplayValue('');
+                    if (onChange) {
+                        // Create a synthetic event with empty value
+                        const syntheticEvent = {
+                            ...e,
+                            target: {
+                                ...e.target,
+                                value: ''
+                            }
+                        };
+                        onChange(syntheticEvent);
+                    }
+                    return;
+                }
+
+                // Parse numeric value
+                const numericValue = parseFloat(inputValue);
+                if (!isNaN(numericValue)) {
+                    // Apply minimum constraint if specified
+                    const min = props.min ? parseFloat(props.min.toString()) : 0;
+                    const finalValue = Math.max(numericValue, min);
+
+                    setDisplayValue(finalValue.toString());
+                    if (onChange) {
+                        const syntheticEvent = {
+                            ...e,
+                            target: {
+                                ...e.target,
+                                value: finalValue.toString()
+                            }
+                        };
+                        onChange(syntheticEvent);
+                    }
+                }
+            } else {
+                // Regular input handling
+                setDisplayValue(inputValue);
+                if (onChange) {
+                    onChange(e);
+                }
+            }
+        };
 
         return (
             <div className="w-full">
@@ -28,6 +85,8 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
                         className
                     )}
                     ref={ref}
+                    value={displayValue}
+                    onChange={handleChange}
                     {...props}
                 />
                 {error && (

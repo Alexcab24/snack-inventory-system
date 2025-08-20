@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { Plus, Edit, Trash2, X, User } from 'lucide-react';
 import { personApi } from '@/lib/api';
 import type { Person, CreatePersonData } from '@/types';
@@ -16,6 +17,10 @@ export default function PeoplePage() {
     const [editingPerson, setEditingPerson] = useState<Person | null>(null);
     const [formData, setFormData] = useState<CreatePersonData>({
         name: '',
+    });
+    const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; person: Person | null }>({
+        isOpen: false,
+        person: null
     });
 
     useEffect(() => {
@@ -68,16 +73,45 @@ export default function PeoplePage() {
         setShowForm(true);
     };
 
-    const handleDelete = async (id: string) => {
-        if (!confirm('¿Estás seguro de que quieres eliminar esta persona?')) return;
+    const handleDeleteClick = (person: Person) => {
+        setDeleteModal({ isOpen: true, person });
+    };
+
+    const handleDeleteConfirm = async () => {
+        if (!deleteModal.person) return;
 
         try {
-            await personApi.delete(id);
+            console.log('Checking if person can be deleted...');
+
+            // First check if the person can be deleted
+            const { canDelete, reason } = await personApi.canDelete(deleteModal.person.id_person);
+
+            if (!canDelete) {
+                toast.error(reason || 'No se puede eliminar esta persona');
+                setDeleteModal({ isOpen: false, person: null });
+                return;
+            }
+
+            console.log('Attempting to delete person with ID:', deleteModal.person.id_person);
+            await personApi.delete(deleteModal.person.id_person);
             toast.success('Persona eliminada exitosamente');
             loadPeople();
         } catch (error) {
-            toast.error('Error al eliminar persona');
             console.error('Error deleting person:', error);
+
+            // Show more specific error messages
+            if (error && typeof error === 'object' && 'message' in error) {
+                const errorMessage = (error as { message: string }).message;
+                if (errorMessage.includes('foreign key') || errorMessage.includes('23503')) {
+                    toast.error('No se puede eliminar esta persona porque tiene ventas asociadas');
+                } else {
+                    toast.error(`Error al eliminar persona: ${errorMessage}`);
+                }
+            } else {
+                toast.error('Error al eliminar persona');
+            }
+        } finally {
+            setDeleteModal({ isOpen: false, person: null });
         }
     };
 
@@ -175,7 +209,7 @@ export default function PeoplePage() {
                                 <Button
                                     variant="ghost"
                                     size="sm"
-                                    onClick={() => handleDelete(person.id_person)}
+                                    onClick={() => handleDeleteClick(person)}
                                     className="hover:bg-red-50 hover:text-red-600"
                                 >
                                     <Trash2 className="h-4 w-4" />
@@ -191,6 +225,18 @@ export default function PeoplePage() {
                     <p className="text-slate-500 text-lg font-medium">No se encontraron personas. ¡Agrega tu primera persona para comenzar!</p>
                 </Card>
             )}
+
+            {/* Delete Confirmation Modal */}
+            <ConfirmModal
+                isOpen={deleteModal.isOpen}
+                onClose={() => setDeleteModal({ isOpen: false, person: null })}
+                onConfirm={handleDeleteConfirm}
+                title="Eliminar Persona"
+                message={`¿Estás seguro de que quieres eliminar a "${deleteModal.person?.name}"? Esta acción no se puede deshacer.`}
+                confirmText="Eliminar"
+                cancelText="Cancelar"
+                variant="danger"
+            />
         </div>
     );
 }
