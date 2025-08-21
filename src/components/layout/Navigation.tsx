@@ -12,6 +12,7 @@ import {
     Menu,
     X,
     BarChart3,
+    History
 } from 'lucide-react';
 
 const navigation = [
@@ -20,6 +21,7 @@ const navigation = [
     { name: 'Ventas', href: '/sales', icon: ShoppingCart },
     { name: 'Deudas', href: '/debts', icon: CreditCard },
     { name: 'Reportes', href: '/reports', icon: BarChart3 },
+    { name: 'Movimientos', href: '/movements', icon: History },
 ];
 
 export function Navigation() {

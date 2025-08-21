@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/Input';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { Pagination } from '@/components/ui/Pagination';
-import { Plus, Edit, Trash2, X, User } from 'lucide-react';
+import { Plus, Edit, Trash2, X, User, RefreshCw } from 'lucide-react';
 import { personApi } from '@/lib/api';
 import { useQueryParams, getPaginatedData, getTotalPages, filterBySearch } from '@/lib/utils';
 import type { Person, PersonWithDebt, CreatePersonData } from '@/types';
@@ -39,6 +39,18 @@ export default function PeoplePage() {
 
     useEffect(() => {
         loadPeople();
+    }, []);
+
+    // Refresh data when page becomes visible again
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (!document.hidden) {
+                loadPeople();
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
     }, []);
 
     const loadPeople = async () => {
@@ -158,10 +170,16 @@ export default function PeoplePage() {
                     <h1 className="text-3xl sm:text-4xl font-bold text-slate-900">Gestión de Personas</h1>
                     <p className="text-slate-600">Gestiona compañeros de trabajo y clientes en el sistema</p>
                 </div>
-                <Button onClick={() => setShowForm(true)} className="shadow-lg w-full sm:w-auto">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Agregar Persona
-                </Button>
+                <div className="flex flex-col sm:flex-row gap-3">
+                    <Button onClick={loadPeople} variant="secondary" className="shadow-lg w-full sm:w-auto" disabled={loading}>
+                        <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                        {loading ? 'Cargando...' : 'Actualizar'}
+                    </Button>
+                    <Button onClick={() => setShowForm(true)} className="shadow-lg w-full sm:w-auto">
+                        <Plus className="h-4 w-4 mr-2" />
+                        Agregar Persona
+                    </Button>
+                </div>
             </div>
 
             <div className={`overflow-hidden transition-all duration-500 ease-in-out ${showForm ? 'max-h-screen opacity-100' : 'max-h-0 opacity-0'

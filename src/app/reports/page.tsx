@@ -14,8 +14,8 @@ import {
     ShoppingCart,
     RefreshCw
 } from 'lucide-react';
-import { reportsApi, snackApi, personApi, saleApi, debtApi } from '@/lib/api';
-import type { Reports, Snack, Person, Sale, Debt } from '@/types';
+import { reportsApi, snackApi, personApi, saleApi, debtApi, logApi } from '@/lib/api';
+import type { Reports, Snack, Person, Sale, Debt, ActivityLog } from '@/types';
 
 export default function ReportsPage() {
     const [reports, setReports] = useState<Reports | null>(null);
@@ -24,6 +24,7 @@ export default function ReportsPage() {
     const [sales, setSales] = useState<Sale[]>([]);
     const [debts, setDebts] = useState<Debt[]>([]);
     const [loading, setLoading] = useState(true);
+    const [recentLogs, setRecentLogs] = useState<ActivityLog[]>([]);
 
     useEffect(() => {
         loadData();
@@ -44,6 +45,14 @@ export default function ReportsPage() {
             setPeople(peopleData);
             setSales(salesData);
             setDebts(debtsData);
+            // Fetch logs separately so missing table or errors don't break reports
+            try {
+                const logs = await logApi.getAll();
+                setRecentLogs(logs.slice(0, 10));
+            } catch (logsError) {
+                console.warn('Activity logs not available:', logsError);
+                setRecentLogs([]);
+            }
         } catch (error) {
             toast.error('Error al cargar reportes');
             console.error('Error loading reports:', error);
@@ -321,6 +330,32 @@ export default function ReportsPage() {
                             </span>
                         </div>
                     </div>
+                </Card>
+
+                {/* Recent Activity */}
+                <Card className="group hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-2">
+                    <h3 className="text-lg font-semibold text-slate-900 mb-4">Actividad reciente</h3>
+                    {recentLogs.length > 0 ? (
+                        <div className="space-y-3">
+                            {recentLogs.map((log) => (
+                                <div key={log.id_log} className="flex justify-between items-start">
+                                    <div>
+                                        <div className="text-sm font-semibold text-slate-800">
+                                            {log.action.replace(/_/g, ' ')}
+                                        </div>
+                                        <div className="text-xs text-slate-600">
+                                            {log.description || `${log.entity_type} ${log.entity_id || ''}`}
+                                        </div>
+                                    </div>
+                                    <div className="text-xs text-slate-500">
+                                        {new Date(log.created_at).toLocaleString('es-ES')}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <p className="text-slate-500">No hay actividad reciente.</p>
+                    )}
                 </Card>
             </div>
         </div>

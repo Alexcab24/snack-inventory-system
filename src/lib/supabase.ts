@@ -13,6 +13,35 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 export type Database = {
     public: {
         Tables: {
+            activity_log: {
+                Row: {
+                    id_log: string;
+                    entity_type: string;
+                    entity_id: string | null;
+                    action: string;
+                    description: string | null;
+                    details: Record<string, unknown> | null;
+                    created_at: string;
+                };
+                Insert: {
+                    id_log?: string;
+                    entity_type: string;
+                    entity_id?: string | null;
+                    action: string;
+                    description?: string | null;
+                    details?: Record<string, unknown> | null;
+                    created_at?: string;
+                };
+                Update: {
+                    id_log?: string;
+                    entity_type?: string;
+                    entity_id?: string | null;
+                    action?: string;
+                    description?: string | null;
+                    details?: Record<string, unknown> | null;
+                    created_at?: string;
+                };
+            };
             snack: {
                 Row: {
                     id_snack: string;

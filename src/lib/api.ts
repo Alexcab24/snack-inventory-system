@@ -8,7 +8,8 @@ import type {
     CreateSnackData,
     CreatePersonData,
     CreateSaleData,
-    Reports
+    Reports,
+    ActivityLog
 } from '@/types';
 
 // Snack CRUD operations
@@ -41,6 +42,20 @@ export const snackApi = {
             .single();
 
         if (error) throw error;
+
+        // Log creation
+        try {
+            await logApi.createLog({
+                entity_type: 'snack',
+                entity_id: data.id_snack,
+                action: 'snack_creado',
+                description: `Snack creado: ${data.name}`,
+                details: { snack: data }
+            });
+        } catch (e) {
+            console.error('Activity log failed (snack create):', e);
+        }
+
         return data;
     },
 
@@ -97,6 +112,33 @@ export const snackApi = {
         }
 
         console.log('API: Update successful, returned data:', data);
+
+        // Log update with before/after diff for provided fields
+        try {
+            const changedFields: Record<string, { before: unknown; after: unknown }> = {};
+            const currentSnackRecord = currentSnack as Record<string, unknown>;
+            const updatedDataRecord = updatedData as Record<string, unknown>;
+            Object.keys(snackData).forEach((k) => {
+                const key = k as keyof typeof updatedData;
+                changedFields[key as string] = { before: currentSnackRecord[key as string], after: updatedDataRecord[key as string] };
+            });
+            await logApi.createLog({
+                entity_type: 'snack',
+                entity_id: data.id_snack,
+                action: 'snack_actualizado',
+                description: `Snack actualizado: ${data.name}`,
+                details: {
+                    changedFields,
+                    recalculated: {
+                        unit_cost,
+                        profit_margin_per_unit,
+                        stock
+                    }
+                }
+            });
+        } catch (e) {
+            console.error('Activity log failed (snack update):', e);
+        }
         return data;
     },
 
@@ -107,6 +149,19 @@ export const snackApi = {
             .eq('id_snack', id);
 
         if (error) throw error;
+
+        // Log deletion
+        try {
+            await logApi.createLog({
+                entity_type: 'snack',
+                entity_id: id,
+                action: 'snack_eliminado',
+                description: `Snack eliminado`,
+                details: { id_snack: id }
+            });
+        } catch (e) {
+            console.error('Activity log failed (snack delete):', e);
+        }
     }
 };
 
@@ -130,19 +185,34 @@ export const personApi = {
                 sales:sale(
                     id_sale,
                     total,
-                    paid
+                    paid,
+                    debts:debt(
+                        id_debt,
+                        amount,
+                        amount_paid,
+                        paid
+                    )
                 )
             `)
             .order('name', { ascending: true });
 
         if (error) throw error;
 
-        // Calculate total debt for each person
+        // Calculate total debt for each person based on actual debt records
         const peopleWithDebts = data?.map(person => {
-            const totalDebt = person.sales?.reduce((sum: number, sale: { id_sale: string; total: number; paid: number }) => {
-                // If sale is not paid (paid = 0), add to debt
-                return sum + (sale.paid === 0 ? sale.total : 0);
-            }, 0) || 0;
+            let totalDebt = 0;
+
+            // Calculate debt from actual debt records
+            person.sales?.forEach((sale: { id_sale: string; total: number; paid: number; debts?: Array<{ id_debt: string; amount: number; amount_paid: number; paid: string }> }) => {
+                sale.debts?.forEach((debt: { id_debt: string; amount: number; amount_paid: number; paid: string }) => {
+                    if (debt.paid === 'pending') {
+                        // Calculate remaining debt amount
+                        const amountPaid = debt.amount_paid || 0;
+                        const remainingDebt = Math.max(0, debt.amount - amountPaid);
+                        totalDebt += remainingDebt;
+                    }
+                });
+            });
 
             return {
                 ...person,
@@ -161,6 +231,18 @@ export const personApi = {
             .single();
 
         if (error) throw error;
+
+        try {
+            await logApi.createLog({
+                entity_type: 'person',
+                entity_id: data.id_person,
+                action: 'persona_creada',
+                description: `Persona creada: ${data.name}`,
+                details: { person: data }
+            });
+        } catch (e) {
+            console.error('Activity log failed (person create):', e);
+        }
         return data;
     },
 
@@ -173,6 +255,17 @@ export const personApi = {
             .single();
 
         if (error) throw error;
+        try {
+            await logApi.createLog({
+                entity_type: 'person',
+                entity_id: data.id_person,
+                action: 'persona_actualizada',
+                description: `Persona actualizada: ${data.name}`,
+                details: { updates: personData }
+            });
+        } catch (e) {
+            console.error('Activity log failed (person update):', e);
+        }
         return data;
     },
 
@@ -242,6 +335,17 @@ export const personApi = {
         }
 
         console.log('API: Person deleted successfully');
+        try {
+            await logApi.createLog({
+                entity_type: 'person',
+                entity_id: id,
+                action: 'persona_eliminada',
+                description: `Persona eliminada`,
+                details: { id_person: id }
+            });
+        } catch (e) {
+            console.error('Activity log failed (person delete):', e);
+        }
     }
 };
 
@@ -312,6 +416,7 @@ export const saleApi = {
         // Validate all items and calculate total
         let total = 0;
         const stockUpdates: { id: string; newStock: number }[] = [];
+        const saleItemsDetails: { snack_id: string; quantity: number }[] = [];
 
         for (const item of saleData.items) {
             // Get snack details to calculate total amount and check stock
@@ -336,6 +441,7 @@ export const saleApi = {
                 id: item.snack_id,
                 newStock: snack.stock - item.quantity
             });
+            saleItemsDetails.push({ snack_id: item.snack_id, quantity: item.quantity });
         }
 
         // Start transaction-like operation
@@ -402,6 +508,25 @@ export const saleApi = {
             });
         }
 
+        // Log sale
+        try {
+            await logApi.createLog({
+                entity_type: 'sale',
+                entity_id: sale.id_sale,
+                action: 'venta_creada',
+                description: `Venta creada (total ${total}, ${saleData.paid === 1 ? 'pagada' : 'pendiente'})`,
+                details: {
+                    person_id: saleData.person_id,
+                    sale_date: saleData.sale_date,
+                    total,
+                    paid: saleData.paid,
+                    items: saleItemsDetails
+                }
+            });
+        } catch (e) {
+            console.error('Activity log failed (sale create):', e);
+        }
+
         // Return the created sale (without items for now to avoid cache issues)
         return sale;
     },
@@ -415,6 +540,17 @@ export const saleApi = {
             .single();
 
         if (error) throw error;
+        try {
+            await logApi.createLog({
+                entity_type: 'sale',
+                entity_id: data.id_sale,
+                action: 'venta_actualizada',
+                description: `Venta ${id} actualizada`,
+                details: { updates: saleData }
+            });
+        } catch (e) {
+            console.error('Activity log failed (sale update):', e);
+        }
         return data;
     },
 
@@ -443,6 +579,17 @@ export const saleApi = {
             .eq('id_sale', id);
 
         if (error) throw error;
+        try {
+            await logApi.createLog({
+                entity_type: 'sale',
+                entity_id: id,
+                action: 'venta_eliminada',
+                description: `Venta eliminada`,
+                details: { id_sale: id }
+            });
+        } catch (e) {
+            console.error('Activity log failed (sale delete):', e);
+        }
     }
 };
 
@@ -486,6 +633,17 @@ export const debtApi = {
             .single();
 
         if (error) throw error;
+        try {
+            await logApi.createLog({
+                entity_type: 'debt',
+                entity_id: data.id_debt,
+                action: 'deuda_creada',
+                description: `Deuda creada por ${data.amount}`,
+                details: { id_sale: debtData.id_sale, amount: debtData.amount, status: debtData.paid }
+            });
+        } catch (e) {
+            console.error('Activity log failed (debt create):', e);
+        }
         return data;
     },
 
@@ -508,6 +666,17 @@ export const debtApi = {
             .single();
 
         if (error) throw error;
+        try {
+            await logApi.createLog({
+                entity_type: 'debt',
+                entity_id: data.id_debt,
+                action: 'deuda_pagada',
+                description: `Deuda marcada como pagada`,
+                details: { id_debt: id }
+            });
+        } catch (e) {
+            console.error('Activity log failed (debt mark paid):', e);
+        }
         return data;
     },
 
@@ -545,6 +714,17 @@ export const debtApi = {
             .single();
 
         if (error) throw error;
+        try {
+            await logApi.createLog({
+                entity_type: 'debt',
+                entity_id: data.id_debt,
+                action: 'abono_agregado',
+                description: `Abono agregado por ${paymentAmount}`,
+                details: { id_debt: id, amount: paymentAmount }
+            });
+        } catch (e) {
+            console.error('Activity log failed (debt add payment):', e);
+        }
         return data;
     },
 
@@ -555,6 +735,17 @@ export const debtApi = {
             .eq('id_debt', id);
 
         if (error) throw error;
+        try {
+            await logApi.createLog({
+                entity_type: 'debt',
+                entity_id: id,
+                action: 'deuda_eliminada',
+                description: `Deuda eliminada`,
+                details: { id_debt: id }
+            });
+        } catch (e) {
+            console.error('Activity log failed (debt delete):', e);
+        }
     }
 };
 
@@ -588,5 +779,27 @@ export const reportsApi = {
             total_profit,
             total_debts
         };
+    }
+};
+
+// Activity Log API
+export const logApi = {
+    async createLog(entry: Omit<ActivityLog, 'id_log' | 'created_at'>): Promise<ActivityLog> {
+        const { data, error } = await supabase
+            .from('activity_log')
+            .insert(entry)
+            .select('*')
+            .single();
+        if (error) throw error;
+        return data as ActivityLog;
+    },
+
+    async getAll(): Promise<ActivityLog[]> {
+        const { data, error } = await supabase
+            .from('activity_log')
+            .select('*')
+            .order('created_at', { ascending: false });
+        if (error) throw error;
+        return (data || []) as ActivityLog[];
     }
 };

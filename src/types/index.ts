@@ -70,6 +70,16 @@ export interface Reports {
     total_debts: number;
 }
 
+export interface ActivityLog {
+    id_log: string;
+    entity_type: 'snack' | 'person' | 'sale' | 'debt' | 'system';
+    entity_id: string | null;
+    action: string;
+    description: string | null;
+    details: Record<string, unknown> | null;
+    created_at: string;
+}
+
 export interface CreateSnackData {
     name: string;
     purchase_type: 'box' | 'bag';
