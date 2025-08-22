@@ -319,7 +319,7 @@ export default function SalesPage() {
                     </div>
                 </div>
 
-                <div className={`sales-form-container overflow-hidden transition-all duration-500 ease-in-out ${showForm ? 'max-h-[90vh] opacity-100' : 'max-h-0 opacity-0'}`}>
+                <div className={`overflow-hidden transition-all duration-500 ease-in-out ${showForm ? 'max-h-screen opacity-100' : 'max-h-0 opacity-0'}`}>
                     <Card className={`transform transition-all duration-500 ease-in-out ${showForm ? 'translate-y-0 scale-100' : 'translate-y-8 scale-95'}`}>
                         <div className="flex justify-between items-center mb-4 sm:mb-6">
                             <h2 className="text-xl sm:text-2xl font-bold text-slate-900">Nueva Venta</h2>
@@ -328,7 +328,7 @@ export default function SalesPage() {
                             </Button>
                         </div>
 
-                        <form onSubmit={handleSubmit} className="sales-form-scroll space-y-4 sm:space-y-6 pr-2">
+                        <form onSubmit={handleSubmit} className="sales-form-scroll space-y-4 sm:space-y-6 max-h-[70vh] overflow-y-auto pr-2">
                             {/* Person Selection and Date */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <Select
