@@ -13,6 +13,7 @@ import { Pagination } from '@/components/ui/Pagination';
 import { Plus, X, Package, User, DollarSign, RefreshCw, CheckCircle, Clock, Trash2, ShoppingCart, Filter, AlertCircle } from 'lucide-react';
 import { saleApi, snackApi, personApi } from '@/lib/api';
 import { formatCurrency, useQueryParams, getPaginatedData, getTotalPages } from '@/lib/utils';
+import { AdminLayout } from '@/components/layout/AdminLayout';
 import type { Sale, Snack, Person, CreateSaleData, CreateSaleItemData } from '@/types';
 
 interface CartItem extends CreateSaleItemData {
@@ -293,364 +294,358 @@ export default function SalesPage() {
         setMultipleParams({ page: page.toString() });
     };
 
-    if (loading) {
-        return (
-            <div className="flex justify-center items-center h-64">
-                <div className="loading-spinner rounded-full h-12 w-12 border-4 border-blue-200 border-t-blue-600"></div>
-            </div>
-        );
-    }
-
     return (
-        <div className="space-y-8">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
-                <div className="space-y-2">
-                    <h1 className="text-3xl sm:text-4xl font-bold text-slate-900">Gestión de Ventas</h1>
-                    <p className="text-slate-600">Registra ventas con múltiples snacks y rastrea el estado de pagos</p>
-                </div>
-                <div className="flex flex-col sm:flex-row gap-3">
-                    <Button onClick={() => setShowForm(true)} className="shadow-lg w-full sm:w-auto">
-                        <Plus className="h-4 w-4 mr-2" />
-                        Nueva Venta
-                    </Button>
-                    <Button
-                        onClick={loadData}
-                        variant="secondary"
-                        className="shadow-lg w-full sm:w-auto"
-                        disabled={loading}
-                    >
-                        <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                        {loading ? 'Cargando...' : 'Actualizar'}
-                    </Button>
-                </div>
-            </div>
-
-            <div className={`overflow-hidden transition-all duration-500 ease-in-out ${showForm ? 'max-h-screen opacity-100' : 'max-h-0 opacity-0'}`}>
-                <Card className={`transform transition-all duration-500 ease-in-out ${showForm ? 'translate-y-0 scale-100' : 'translate-y-8 scale-95'}`}>
-                    <div className="flex justify-between items-center mb-6">
-                        <h2 className="text-2xl font-bold text-slate-900">Nueva Venta</h2>
-                        <Button variant="ghost" size="sm" onClick={resetForm} className="hover:bg-red-50 hover:text-red-600">
-                            <X className="h-5 w-5" />
+        <AdminLayout loading={loading}>
+            <div className="space-y-8">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
+                    <div className="space-y-2">
+                        <h1 className="text-3xl sm:text-4xl font-bold text-slate-900">Gestión de Ventas</h1>
+                        <p className="text-slate-600">Registra ventas con múltiples snacks y rastrea el estado de pagos</p>
+                    </div>
+                    <div className="flex flex-col sm:flex-row gap-3">
+                        <Button onClick={() => setShowForm(true)} className="shadow-lg w-full sm:w-auto">
+                            <Plus className="h-4 w-4 mr-2" />
+                            Nueva Venta
+                        </Button>
+                        <Button
+                            onClick={loadData}
+                            variant="secondary"
+                            className="shadow-lg w-full sm:w-auto"
+                            disabled={loading}
+                        >
+                            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                            {loading ? 'Cargando...' : 'Actualizar'}
                         </Button>
                     </div>
-
-                    <form onSubmit={handleSubmit} className="space-y-6">
-                        {/* Person Selection and Date */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <Select
-                                label={`Seleccionar Persona (${people.length} disponibles)`}
-                                value={selectedPersonId}
-                                onChange={(value) => setSelectedPersonId(value as string)}
-                                options={people.map(person => ({
-                                    value: person.id_person,
-                                    label: person.name,
-                                    icon: <User className="h-4 w-4" />
-                                }))}
-                                placeholder="Seleccionar persona"
-                                required
-                            />
-
-                            <DatePicker
-                                label="Fecha de Venta"
-                                value={saleDate}
-                                onChange={setSaleDate}
-                                required
-                            />
-                        </div>
-
-                        {/* Add Items to Cart */}
-                        <div className="bg-gray-50 p-4 rounded-lg">
-                            <h3 className="text-lg font-semibold mb-4 flex items-center">
-                                <ShoppingCart className="h-5 w-5 mr-2" />
-                                Agregar Items al Carrito
-                            </h3>
-
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <Select
-                                    label="Snack"
-                                    value={selectedSnackId}
-                                    onChange={(value) => setSelectedSnackId(value as string)}
-                                    options={snacks.filter(s => s.stock > 0).map(snack => ({
-                                        value: snack.id_snack,
-                                        label: snack.name,
-                                        description: `${formatCurrency(snack.unit_sale_price)} - Stock: ${snack.stock}`,
-                                        icon: <Package className="h-4 w-4" />
-                                    }))}
-                                    placeholder="Seleccionar snack"
-                                />
-
-                                <Input
-                                    label="Cantidad"
-                                    type="number"
-                                    min="1"
-                                    value={itemQuantity}
-                                    onChange={(e) => setItemQuantity(parseFloat(e.target.value) || 1)}
-                                    enableNumericHandling
-                                />
-
-                                <div className="flex items-end">
-                                    <Button
-                                        type="button"
-                                        onClick={addToCart}
-                                        disabled={!selectedSnackId || itemQuantity <= 0}
-                                        className="w-full"
-                                    >
-                                        <Plus className="h-4 w-4 mr-2" />
-                                        Agregar
-                                    </Button>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Shopping Cart */}
-                        {cart.length > 0 && (
-                            <div className="bg-blue-50 p-4 rounded-lg">
-                                <h3 className="text-lg font-semibold mb-4 flex items-center">
-                                    <ShoppingCart className="h-5 w-5 mr-2" />
-                                    Carrito de Compra ({cart.length} items)
-                                </h3>
-
-                                <div className="space-y-3">
-                                    {cart.map((item) => (
-                                        <div key={item.snack_id} className="flex items-center justify-between bg-white p-3 rounded-lg shadow-sm">
-                                            <div className="flex-1">
-                                                <div className="font-semibold">{item.snack.name}</div>
-                                                <div className="text-sm text-gray-600">
-                                                    {formatCurrency(item.snack.unit_sale_price)} x {item.quantity}
-                                                </div>
-                                            </div>
-
-                                            <div className="flex items-center space-x-3">
-                                                <Input
-                                                    type="number"
-                                                    min="1"
-                                                    max={item.snack.stock}
-                                                    value={item.quantity}
-                                                    onChange={(e) => updateCartItemQuantity(item.snack_id, parseFloat(e.target.value) || 1)}
-                                                    className="w-20"
-                                                    enableNumericHandling
-                                                />
-
-                                                <div className="text-right">
-                                                    <div className="font-semibold">{formatCurrency(item.subtotal)}</div>
-                                                </div>
-
-                                                <Button
-                                                    type="button"
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    onClick={() => removeFromCart(item.snack_id)}
-                                                    className="text-red-600 hover:bg-red-50"
-                                                >
-                                                    <Trash2 className="h-4 w-4" />
-                                                </Button>
-                                            </div>
-                                        </div>
-                                    ))}
-
-                                    <div className="border-t pt-3">
-                                        <div className="flex justify-between items-center text-lg font-bold">
-                                            <span>Total:</span>
-                                            <span>{formatCurrency(getCartTotal())}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Payment Status */}
-                        <div className="space-y-3">
-                            <label className="text-sm font-medium text-gray-700">Estado de Pago</label>
-                            <div className="flex space-x-4">
-                                <button
-                                    type="button"
-                                    onClick={() => setPaid(1)}
-                                    className={`flex-1 flex items-center justify-center space-x-3 py-4 px-6 rounded-xl border-2 transition-all duration-300 ${paid === 1
-                                        ? 'border-green-500 bg-green-50 text-green-700 shadow-lg shadow-green-100'
-                                        : 'border-gray-200 bg-white text-gray-500 hover:border-green-300 hover:bg-green-25 hover:shadow-md'
-                                        }`}
-                                >
-                                    <CheckCircle className={`w-5 h-5 transition-all duration-300 ${paid === 1 ? 'text-green-600' : 'text-gray-400'}`} />
-                                    <div className="text-center">
-                                        <div className="font-semibold">Pagado</div>
-                                        <div className="text-xs opacity-75">Pago inmediato</div>
-                                    </div>
-                                </button>
-
-                                <button
-                                    type="button"
-                                    onClick={() => setPaid(0)}
-                                    className={`flex-1 flex items-center justify-center space-x-3 py-4 px-6 rounded-xl border-2 transition-all duration-300 ${paid === 0
-                                        ? 'border-red-500 bg-red-50 text-red-700 shadow-lg shadow-red-100'
-                                        : 'border-gray-200 bg-white text-gray-500 hover:border-red-300 hover:bg-red-25 hover:shadow-md'
-                                        }`}
-                                >
-                                    <Clock className={`w-5 h-5 transition-all duration-300 ${paid === 0 ? 'text-red-600' : 'text-gray-400'}`} />
-                                    <div className="text-center">
-                                        <div className="font-semibold">Pendiente</div>
-                                        <div className="text-xs opacity-75">Deuda futura</div>
-                                    </div>
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="flex justify-end space-x-3">
-                            <Button type="button" variant="secondary" onClick={resetForm}>
-                                Cancelar
-                            </Button>
-                            <Button type="submit" disabled={cart.length === 0 || !selectedPersonId}>
-                                Registrar Venta ({formatCurrency(getCartTotal())})
-                            </Button>
-                        </div>
-                    </form>
-                </Card>
-            </div>
-
-            {/* Sales List */}
-            <div className="space-y-6">
-                <div className="flex flex-col space-y-4">
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
-                        <h2 className="text-2xl font-bold text-slate-900">
-                            Ventas Recientes ({filteredSales.length} resultados)
-                        </h2>
-                        <SearchBar
-                            value={searchTerm}
-                            onChange={handleSearchChange}
-                            placeholder="Buscar por persona, fecha de venta o registro..."
-                            className="w-full sm:w-80"
-                        />
-                    </div>
-
-                    {/* Payment Filter */}
-                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                        <div className="flex items-center space-x-2 mb-3">
-                            <Filter className="h-4 w-4 text-gray-600" />
-                            <span className="text-sm font-semibold text-gray-700">Filtrar por Estado de Pago</span>
-                        </div>
-                        <div className="flex flex-wrap gap-3">
-                            <Button
-                                variant={paymentFilter === 'all' ? 'primary' : 'secondary'}
-                                size="sm"
-                                onClick={() => handlePaymentFilterChange('all')}
-                                className={`text-sm transition-all duration-200 ${paymentFilter === 'all'
-                                    ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-md'
-                                    : 'hover:bg-blue-50 hover:border-blue-300'
-                                    }`}
-                            >
-                                <Package className="h-4 w-4 mr-2" />
-                                Todas ({sales.length})
-                            </Button>
-                            <Button
-                                variant={paymentFilter === 'paid' ? 'primary' : 'secondary'}
-                                size="sm"
-                                onClick={() => handlePaymentFilterChange('paid')}
-                                className={`text-sm transition-all duration-200 ${paymentFilter === 'paid'
-                                    ? 'bg-green-600 hover:bg-green-700 text-white shadow-md'
-                                    : 'hover:bg-green-50 hover:border-green-300 text-green-700'
-                                    }`}
-                            >
-                                <CheckCircle className="h-4 w-4 mr-2" />
-                                Pagadas ({sales.filter(s => s.paid === 1).length})
-                            </Button>
-                            <Button
-                                variant={paymentFilter === 'unpaid' ? 'primary' : 'secondary'}
-                                size="sm"
-                                onClick={() => handlePaymentFilterChange('unpaid')}
-                                className={`text-sm transition-all duration-200 ${paymentFilter === 'unpaid'
-                                    ? 'bg-red-600 hover:bg-red-700 text-white shadow-md'
-                                    : 'hover:bg-red-50 hover:border-red-300 text-red-700'
-                                    }`}
-                            >
-                                <AlertCircle className="h-4 w-4 mr-2" />
-                                No Pagadas ({sales.filter(s => s.paid === 0).length})
-                            </Button>
-                        </div>
-                    </div>
                 </div>
 
-                {paginatedSales.map((sale) => (
-                    <Card key={sale.id_sale} className="group hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-2">
-                        <div className="flex justify-between items-start">
-                            <div className="flex items-center space-x-4">
-                                <div className="flex-shrink-0">
-                                    <div className="h-14 w-14 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center shadow-lg group-hover:shadow-xl transition-all duration-300">
-                                        <DollarSign className="h-7 w-7 text-white group-hover:scale-110 transition-transform duration-300" />
+                <div className={`overflow-hidden transition-all duration-500 ease-in-out ${showForm ? 'max-h-screen opacity-100' : 'max-h-0 opacity-0'}`}>
+                    <Card className={`transform transition-all duration-500 ease-in-out ${showForm ? 'translate-y-0 scale-100' : 'translate-y-8 scale-95'}`}>
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-2xl font-bold text-slate-900">Nueva Venta</h2>
+                            <Button variant="ghost" size="sm" onClick={resetForm} className="hover:bg-red-50 hover:text-red-600">
+                                <X className="h-5 w-5" />
+                            </Button>
+                        </div>
+
+                        <form onSubmit={handleSubmit} className="space-y-6">
+                            {/* Person Selection and Date */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <Select
+                                    label={`Seleccionar Persona (${people.length} disponibles)`}
+                                    value={selectedPersonId}
+                                    onChange={(value) => setSelectedPersonId(value as string)}
+                                    options={people.map(person => ({
+                                        value: person.id_person,
+                                        label: person.name,
+                                        icon: <User className="h-4 w-4" />
+                                    }))}
+                                    placeholder="Seleccionar persona"
+                                    required
+                                />
+
+                                <DatePicker
+                                    label="Fecha de Venta"
+                                    value={saleDate}
+                                    onChange={setSaleDate}
+                                    required
+                                />
+                            </div>
+
+                            {/* Add Items to Cart */}
+                            <div className="bg-gray-50 p-4 rounded-lg">
+                                <h3 className="text-lg font-semibold mb-4 flex items-center">
+                                    <ShoppingCart className="h-5 w-5 mr-2" />
+                                    Agregar Items al Carrito
+                                </h3>
+
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <Select
+                                        label="Snack"
+                                        value={selectedSnackId}
+                                        onChange={(value) => setSelectedSnackId(value as string)}
+                                        options={snacks.filter(s => s.stock > 0).map(snack => ({
+                                            value: snack.id_snack,
+                                            label: snack.name,
+                                            description: `${formatCurrency(snack.unit_sale_price)} - Stock: ${snack.stock}`,
+                                            icon: <Package className="h-4 w-4" />
+                                        }))}
+                                        placeholder="Seleccionar snack"
+                                    />
+
+                                    <Input
+                                        label="Cantidad"
+                                        type="number"
+                                        min="1"
+                                        value={itemQuantity}
+                                        onChange={(e) => setItemQuantity(parseFloat(e.target.value) || 1)}
+                                        enableNumericHandling
+                                    />
+
+                                    <div className="flex items-end">
+                                        <Button
+                                            type="button"
+                                            onClick={addToCart}
+                                            disabled={!selectedSnackId || itemQuantity <= 0}
+                                            className="w-full"
+                                        >
+                                            <Plus className="h-4 w-4 mr-2" />
+                                            Agregar
+                                        </Button>
                                     </div>
                                 </div>
-                                <div className="flex-1">
-                                    <div className="flex items-center space-x-2 mb-1">
-                                        <User className="h-4 w-4 text-gray-400" />
-                                        <span className="font-bold text-slate-900">{getPersonName(sale.person_id)}</span>
-                                    </div>
+                            </div>
 
-                                    {/* Show items */}
-                                    <div className="space-y-1">
-                                        {sale.items?.map((item) => (
-                                            <div key={item.id_sale_item} className="flex items-center space-x-2 text-sm">
-                                                <Package className="h-3 w-3 text-gray-400" />
-                                                <span className="text-slate-600">
-                                                    {item.snack?.name} x{item.quantity} = {formatCurrency(item.subtotal)}
-                                                </span>
+                            {/* Shopping Cart */}
+                            {cart.length > 0 && (
+                                <div className="bg-blue-50 p-4 rounded-lg">
+                                    <h3 className="text-lg font-semibold mb-4 flex items-center">
+                                        <ShoppingCart className="h-5 w-5 mr-2" />
+                                        Carrito de Compra ({cart.length} items)
+                                    </h3>
+
+                                    <div className="space-y-3">
+                                        {cart.map((item) => (
+                                            <div key={item.snack_id} className="flex items-center justify-between bg-white p-3 rounded-lg shadow-sm">
+                                                <div className="flex-1">
+                                                    <div className="font-semibold">{item.snack.name}</div>
+                                                    <div className="text-sm text-gray-600">
+                                                        {formatCurrency(item.snack.unit_sale_price)} x {item.quantity}
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex items-center space-x-3">
+                                                    <Input
+                                                        type="number"
+                                                        min="1"
+                                                        max={item.snack.stock}
+                                                        value={item.quantity}
+                                                        onChange={(e) => updateCartItemQuantity(item.snack_id, parseFloat(e.target.value) || 1)}
+                                                        className="w-20"
+                                                        enableNumericHandling
+                                                    />
+
+                                                    <div className="text-right">
+                                                        <div className="font-semibold">{formatCurrency(item.subtotal)}</div>
+                                                    </div>
+
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => removeFromCart(item.snack_id)}
+                                                        className="text-red-600 hover:bg-red-50"
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
                                             </div>
                                         ))}
+
+                                        <div className="border-t pt-3">
+                                            <div className="flex justify-between items-center text-lg font-bold">
+                                                <span>Total:</span>
+                                                <span>{formatCurrency(getCartTotal())}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Payment Status */}
+                            <div className="space-y-3">
+                                <label className="text-sm font-medium text-gray-700">Estado de Pago</label>
+                                <div className="flex space-x-4">
+                                    <button
+                                        type="button"
+                                        onClick={() => setPaid(1)}
+                                        className={`flex-1 flex items-center justify-center space-x-3 py-4 px-6 rounded-xl border-2 transition-all duration-300 ${paid === 1
+                                            ? 'border-green-500 bg-green-50 text-green-700 shadow-lg shadow-green-100'
+                                            : 'border-gray-200 bg-white text-gray-500 hover:border-green-300 hover:bg-green-25 hover:shadow-md'
+                                            }`}
+                                    >
+                                        <CheckCircle className={`w-5 h-5 transition-all duration-300 ${paid === 1 ? 'text-green-600' : 'text-gray-400'}`} />
+                                        <div className="text-center">
+                                            <div className="font-semibold">Pagado</div>
+                                            <div className="text-xs opacity-75">Pago inmediato</div>
+                                        </div>
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => setPaid(0)}
+                                        className={`flex-1 flex items-center justify-center space-x-3 py-4 px-6 rounded-xl border-2 transition-all duration-300 ${paid === 0
+                                            ? 'border-red-500 bg-red-50 text-red-700 shadow-lg shadow-red-100'
+                                            : 'border-gray-200 bg-white text-gray-500 hover:border-red-300 hover:bg-red-25 hover:shadow-md'
+                                            }`}
+                                    >
+                                        <Clock className={`w-5 h-5 transition-all duration-300 ${paid === 0 ? 'text-red-600' : 'text-gray-400'}`} />
+                                        <div className="text-center">
+                                            <div className="font-semibold">Pendiente</div>
+                                            <div className="text-xs opacity-75">Deuda futura</div>
+                                        </div>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="flex justify-end space-x-3">
+                                <Button type="button" variant="secondary" onClick={resetForm}>
+                                    Cancelar
+                                </Button>
+                                <Button type="submit" disabled={cart.length === 0 || !selectedPersonId}>
+                                    Registrar Venta ({formatCurrency(getCartTotal())})
+                                </Button>
+                            </div>
+                        </form>
+                    </Card>
+                </div>
+
+                {/* Sales List */}
+                <div className="space-y-6">
+                    <div className="flex flex-col space-y-4">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
+                            <h2 className="text-2xl font-bold text-slate-900">
+                                Ventas Recientes ({filteredSales.length} resultados)
+                            </h2>
+                            <SearchBar
+                                value={searchTerm}
+                                onChange={handleSearchChange}
+                                placeholder="Buscar por persona, fecha de venta o registro..."
+                                className="w-full sm:w-80"
+                            />
+                        </div>
+
+                        {/* Payment Filter */}
+                        <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                            <div className="flex items-center space-x-2 mb-3">
+                                <Filter className="h-4 w-4 text-gray-600" />
+                                <span className="text-sm font-semibold text-gray-700">Filtrar por Estado de Pago</span>
+                            </div>
+                            <div className="flex flex-wrap gap-3">
+                                <Button
+                                    variant={paymentFilter === 'all' ? 'primary' : 'secondary'}
+                                    size="sm"
+                                    onClick={() => handlePaymentFilterChange('all')}
+                                    className={`text-sm transition-all duration-200 ${paymentFilter === 'all'
+                                        ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-md'
+                                        : 'hover:bg-blue-50 hover:border-blue-300'
+                                        }`}
+                                >
+                                    <Package className="h-4 w-4 mr-2" />
+                                    Todas ({sales.length})
+                                </Button>
+                                <Button
+                                    variant={paymentFilter === 'paid' ? 'primary' : 'secondary'}
+                                    size="sm"
+                                    onClick={() => handlePaymentFilterChange('paid')}
+                                    className={`text-sm transition-all duration-200 ${paymentFilter === 'paid'
+                                        ? 'bg-green-600 hover:bg-green-700 text-white shadow-md'
+                                        : 'hover:bg-green-50 hover:border-green-300 text-green-700'
+                                        }`}
+                                >
+                                    <CheckCircle className="h-4 w-4 mr-2" />
+                                    Pagadas ({sales.filter(s => s.paid === 1).length})
+                                </Button>
+                                <Button
+                                    variant={paymentFilter === 'unpaid' ? 'primary' : 'secondary'}
+                                    size="sm"
+                                    onClick={() => handlePaymentFilterChange('unpaid')}
+                                    className={`text-sm transition-all duration-200 ${paymentFilter === 'unpaid'
+                                        ? 'bg-red-600 hover:bg-red-700 text-white shadow-md'
+                                        : 'hover:bg-red-50 hover:border-red-300 text-red-700'
+                                        }`}
+                                >
+                                    <AlertCircle className="h-4 w-4 mr-2" />
+                                    No Pagadas ({sales.filter(s => s.paid === 0).length})
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {paginatedSales.map((sale) => (
+                        <Card key={sale.id_sale} className="group hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-2">
+                            <div className="flex justify-between items-start">
+                                <div className="flex items-center space-x-4">
+                                    <div className="flex-shrink-0">
+                                        <div className="h-14 w-14 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center shadow-lg group-hover:shadow-xl transition-all duration-300">
+                                            <DollarSign className="h-7 w-7 text-white group-hover:scale-110 transition-transform duration-300" />
+                                        </div>
+                                    </div>
+                                    <div className="flex-1">
+                                        <div className="flex items-center space-x-2 mb-1">
+                                            <User className="h-4 w-4 text-gray-400" />
+                                            <span className="font-bold text-slate-900">{getPersonName(sale.person_id)}</span>
+                                        </div>
+
+                                        {/* Show items */}
+                                        <div className="space-y-1">
+                                            {sale.items?.map((item) => (
+                                                <div key={item.id_sale_item} className="flex items-center space-x-2 text-sm">
+                                                    <Package className="h-3 w-3 text-gray-400" />
+                                                    <span className="text-slate-600">
+                                                        {item.snack?.name} x{item.quantity} = {formatCurrency(item.subtotal)}
+                                                    </span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="text-right">
+                                    <div className="text-lg font-semibold text-gray-900">
+                                        {formatCurrency(sale.total)}
+                                    </div>
+                                    <div className="text-sm text-gray-500">
+                                        {sale.items?.length || 0} items
+                                    </div>
+                                    <div className={`text-sm font-medium ${sale.paid === 1 ? 'text-green-600' : 'text-red-600'}`}>
+                                        {sale.paid === 1 ? 'Pagado' : 'No pagado'}
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="text-right">
-                                <div className="text-lg font-semibold text-gray-900">
-                                    {formatCurrency(sale.total)}
-                                </div>
-                                <div className="text-sm text-gray-500">
-                                    {sale.items?.length || 0} items
-                                </div>
-                                <div className={`text-sm font-medium ${sale.paid === 1 ? 'text-green-600' : 'text-red-600'}`}>
-                                    {sale.paid === 1 ? 'Pagado' : 'No pagado'}
-                                </div>
+                            <div className="text-xs text-gray-500 mt-2">
+                                Venta: {(() => {
+                                    const [year, month, day] = sale.sale_date.split('-').map(Number);
+                                    return `${day}/${month}/${year}`;
+                                })()} |
+                                Registro: {new Date(sale.created_at).toLocaleString('es-ES')}
                             </div>
+                        </Card>
+                    ))}
+
+                    {paginatedSales.length === 0 && !loading && (
+                        <Card className="text-center py-12">
+                            <p className="text-gray-500 text-lg">
+                                {searchTerm ? 'No se encontraron ventas que coincidan con tu búsqueda.' : 'No se encontraron ventas. ¡Registra tu primera venta para comenzar!'}
+                            </p>
+                        </Card>
+                    )}
+
+                    {/* Pagination */}
+                    {totalPages > 1 && (
+                        <div className="mt-8">
+                            <Pagination
+                                currentPage={currentPage}
+                                totalPages={totalPages}
+                                onPageChange={handlePageChange}
+                            />
                         </div>
+                    )}
+                </div>
 
-                        <div className="text-xs text-gray-500 mt-2">
-                            Venta: {(() => {
-                                const [year, month, day] = sale.sale_date.split('-').map(Number);
-                                return `${day}/${month}/${year}`;
-                            })()} |
-                            Registro: {new Date(sale.created_at).toLocaleString('es-ES')}
-                        </div>
-                    </Card>
-                ))}
-
-                {paginatedSales.length === 0 && !loading && (
-                    <Card className="text-center py-12">
-                        <p className="text-gray-500 text-lg">
-                            {searchTerm ? 'No se encontraron ventas que coincidan con tu búsqueda.' : 'No se encontraron ventas. ¡Registra tu primera venta para comenzar!'}
-                        </p>
-                    </Card>
-                )}
-
-                {/* Pagination */}
-                {totalPages > 1 && (
-                    <div className="mt-8">
-                        <Pagination
-                            currentPage={currentPage}
-                            totalPages={totalPages}
-                            onPageChange={handlePageChange}
-                        />
-                    </div>
-                )}
+                {/* Sale Confirmation Modal */}
+                <ConfirmModal
+                    isOpen={confirmModal.isOpen}
+                    onClose={() => setConfirmModal({ isOpen: false, saleData: null })}
+                    onConfirm={handleConfirmSale}
+                    title="Confirmar Venta"
+                    message={`¿Estás seguro de que quieres registrar esta venta por ${formatCurrency(getCartTotal())}?`}
+                    confirmText="Confirmar Venta"
+                    cancelText="Cancelar"
+                    variant="info"
+                />
             </div>
-
-            {/* Sale Confirmation Modal */}
-            <ConfirmModal
-                isOpen={confirmModal.isOpen}
-                onClose={() => setConfirmModal({ isOpen: false, saleData: null })}
-                onConfirm={handleConfirmSale}
-                title="Confirmar Venta"
-                message={`¿Estás seguro de que quieres registrar esta venta por ${formatCurrency(getCartTotal())}?`}
-                confirmText="Confirmar Venta"
-                cancelText="Cancelar"
-                variant="info"
-            />
-        </div>
+        </AdminLayout>
     );
 }

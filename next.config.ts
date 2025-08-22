@@ -1,10 +1,13 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
   experimental: {
-    serverComponentsExternalPackages: ['@supabase/supabase-js']
-  }
+    optimizePackageImports: ['lucide-react'],
+  },
+  // Ensure proper hydration
+  reactStrictMode: true,
+  // Disable server-side rendering for pages that need client-side auth
+  unstable_runtimeJS: true,
 };
 
 export default nextConfig;

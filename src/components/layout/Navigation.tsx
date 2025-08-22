@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { clsx } from 'clsx';
+import { useAuth } from '@/components/auth/AuthProvider';
+import { Button } from '@/components/ui/Button';
 import {
     Package,
     Users,
@@ -12,7 +14,9 @@ import {
     Menu,
     X,
     BarChart3,
-    History
+    History,
+    LogOut,
+    User
 } from 'lucide-react';
 
 const navigation = [
@@ -27,6 +31,7 @@ const navigation = [
 export function Navigation() {
     const pathname = usePathname();
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const { user, logout } = useAuth();
 
     // Close mobile menu when route changes
     useEffect(() => {
@@ -84,7 +89,7 @@ export function Navigation() {
             </div>
 
             {/* Desktop Navigation */}
-            <nav className="hidden lg:flex space-x-2">
+            <nav className="hidden lg:flex items-center space-x-2">
                 {navigation.map((item) => {
                     const isActive = pathname === item.href;
                     return (
@@ -109,6 +114,22 @@ export function Navigation() {
                         </Link>
                     );
                 })}
+
+                {/* User Info and Logout */}
+                <div className="flex items-center space-x-2 ml-4 pl-4 border-l border-slate-200">
+                    <div className="flex items-center space-x-2 px-3 py-2 bg-slate-50 rounded-lg">
+                        <User className="h-4 w-4 text-slate-600" />
+                        <span className="text-sm font-medium text-slate-700">{user?.username}</span>
+                    </div>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={logout}
+                        className="text-slate-600 hover:text-red-600 hover:bg-red-50"
+                    >
+                        <LogOut className="h-4 w-4" />
+                    </Button>
+                </div>
             </nav>
 
             {/* Mobile Navigation Menu Overlay */}
@@ -154,6 +175,26 @@ export function Navigation() {
                                     </Link>
                                 );
                             })}
+                        </div>
+
+                        {/* User Info and Logout - Mobile */}
+                        <div className="border-t border-gray-100 pt-4 mt-4">
+                            <div className="px-6 py-3 bg-gray-50 rounded-lg mx-4 mb-3">
+                                <div className="flex items-center space-x-3">
+                                    <User className="h-5 w-5 text-gray-600" />
+                                    <span className="text-sm font-medium text-gray-700">{user?.username}</span>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => {
+                                    logout();
+                                    setIsMobileMenuOpen(false);
+                                }}
+                                className="mobile-menu-item flex items-center px-6 py-4 text-base font-medium text-red-600 hover:bg-red-50 transition-all duration-200 w-full"
+                            >
+                                <LogOut className="mr-4 h-6 w-6" />
+                                <span className="flex-1">Cerrar Sesión</span>
+                            </button>
                         </div>
 
                         {/* Menu Footer */}

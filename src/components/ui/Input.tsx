@@ -5,10 +5,11 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
     label?: string;
     error?: string;
     enableNumericHandling?: boolean; // Enable automatic numeric input handling
+    icon?: React.ReactNode; // Optional icon to display
 }
 
 const Input = forwardRef<HTMLInputElement, InputProps>(
-    ({ className, label, error, id, enableNumericHandling, onChange, value, ...props }, ref) => {
+    ({ className, label, error, id, enableNumericHandling, onChange, value, icon, ...props }, ref) => {
         const inputId = id || `input-${Math.random().toString(36).substr(2, 9)}`;
         const [displayValue, setDisplayValue] = useState(value);
 
@@ -77,18 +78,26 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
                         {label}
                     </label>
                 )}
-                <input
-                    id={inputId}
-                    className={clsx(
-                        'flex h-12 w-full rounded-xl border-2 border-slate-300 bg-white px-4 py-3 text-sm ring-offset-white file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 transition-all duration-300 hover:border-blue-400 focus:border-blue-500 shadow-sm hover:shadow-md text-slate-900',
-                        error && 'border-red-500 focus-visible:ring-red-500',
-                        className
+                <div className="relative">
+                    {icon && (
+                        <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400">
+                            {icon}
+                        </div>
                     )}
-                    ref={ref}
-                    value={displayValue}
-                    onChange={handleChange}
-                    {...props}
-                />
+                    <input
+                        id={inputId}
+                        className={clsx(
+                            'flex h-12 w-full rounded-xl border-2 border-slate-300 bg-white px-4 py-3 text-sm ring-offset-white file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 transition-all duration-300 hover:border-blue-400 focus:border-blue-500 shadow-sm hover:shadow-md text-slate-900',
+                            error && 'border-red-500 focus-visible:ring-red-500',
+                            icon && 'pl-10',
+                            className
+                        )}
+                        ref={ref}
+                        value={displayValue}
+                        onChange={handleChange}
+                        {...props}
+                    />
+                </div>
                 {error && (
                     <p className="mt-2 text-sm text-red-600 font-medium">{error}</p>
                 )}
