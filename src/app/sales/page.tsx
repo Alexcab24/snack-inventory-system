@@ -299,10 +299,10 @@ export default function SalesPage() {
             <div className="space-y-8">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
                     <div className="space-y-2">
-                        <h1 className="text-3xl sm:text-4xl font-bold text-slate-900">Gestión de Ventas</h1>
-                        <p className="text-slate-600">Registra ventas con múltiples snacks y rastrea el estado de pagos</p>
+                        <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-900">Gestión de Ventas</h1>
+                        <p className="text-sm sm:text-base text-slate-600">Registra ventas con múltiples snacks y rastrea el estado de pagos</p>
                     </div>
-                    <div className="flex flex-col sm:flex-row gap-3">
+                    <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto">
                         <Button onClick={() => setShowForm(true)} className="shadow-lg w-full sm:w-auto">
                             <Plus className="h-4 w-4 mr-2" />
                             Nueva Venta
@@ -319,16 +319,16 @@ export default function SalesPage() {
                     </div>
                 </div>
 
-                <div className={`overflow-hidden transition-all duration-500 ease-in-out ${showForm ? 'max-h-screen opacity-100' : 'max-h-0 opacity-0'}`}>
+                <div className={`sales-form-container overflow-hidden transition-all duration-500 ease-in-out ${showForm ? 'max-h-[90vh] opacity-100' : 'max-h-0 opacity-0'}`}>
                     <Card className={`transform transition-all duration-500 ease-in-out ${showForm ? 'translate-y-0 scale-100' : 'translate-y-8 scale-95'}`}>
-                        <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-2xl font-bold text-slate-900">Nueva Venta</h2>
+                        <div className="flex justify-between items-center mb-4 sm:mb-6">
+                            <h2 className="text-xl sm:text-2xl font-bold text-slate-900">Nueva Venta</h2>
                             <Button variant="ghost" size="sm" onClick={resetForm} className="hover:bg-red-50 hover:text-red-600">
                                 <X className="h-5 w-5" />
                             </Button>
                         </div>
 
-                        <form onSubmit={handleSubmit} className="space-y-6">
+                        <form onSubmit={handleSubmit} className="sales-form-scroll space-y-4 sm:space-y-6 pr-2">
                             {/* Person Selection and Date */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <Select
@@ -353,36 +353,40 @@ export default function SalesPage() {
                             </div>
 
                             {/* Add Items to Cart */}
-                            <div className="bg-gray-50 p-4 rounded-lg">
-                                <h3 className="text-lg font-semibold mb-4 flex items-center">
-                                    <ShoppingCart className="h-5 w-5 mr-2" />
+                            <div className="bg-gray-50 p-3 sm:p-4 rounded-lg">
+                                <h3 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4 flex items-center">
+                                    <ShoppingCart className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
                                     Agregar Items al Carrito
                                 </h3>
 
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                    <Select
-                                        label="Snack"
-                                        value={selectedSnackId}
-                                        onChange={(value) => setSelectedSnackId(value as string)}
-                                        options={snacks.filter(s => s.stock > 0).map(snack => ({
-                                            value: snack.id_snack,
-                                            label: snack.name,
-                                            description: `${formatCurrency(snack.unit_sale_price)} - Stock: ${snack.stock}`,
-                                            icon: <Package className="h-4 w-4" />
-                                        }))}
-                                        placeholder="Seleccionar snack"
-                                    />
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
+                                    <div className="sm:col-span-1 md:col-span-1">
+                                        <Select
+                                            label="Snack"
+                                            value={selectedSnackId}
+                                            onChange={(value) => setSelectedSnackId(value as string)}
+                                            options={snacks.filter(s => s.stock > 0).map(snack => ({
+                                                value: snack.id_snack,
+                                                label: snack.name,
+                                                description: `${formatCurrency(snack.unit_sale_price)} - Stock: ${snack.stock}`,
+                                                icon: <Package className="h-4 w-4" />
+                                            }))}
+                                            placeholder="Seleccionar snack"
+                                        />
+                                    </div>
 
-                                    <Input
-                                        label="Cantidad"
-                                        type="number"
-                                        min="1"
-                                        value={itemQuantity}
-                                        onChange={(e) => setItemQuantity(parseFloat(e.target.value) || 1)}
-                                        enableNumericHandling
-                                    />
+                                    <div className="sm:col-span-1 md:col-span-1">
+                                        <Input
+                                            label="Cantidad"
+                                            type="number"
+                                            min="1"
+                                            value={itemQuantity}
+                                            onChange={(e) => setItemQuantity(parseFloat(e.target.value) || 1)}
+                                            enableNumericHandling
+                                        />
+                                    </div>
 
-                                    <div className="flex items-end">
+                                    <div className="flex items-end sm:col-span-2 md:col-span-1">
                                         <Button
                                             type="button"
                                             onClick={addToCart}
@@ -398,35 +402,38 @@ export default function SalesPage() {
 
                             {/* Shopping Cart */}
                             {cart.length > 0 && (
-                                <div className="bg-blue-50 p-4 rounded-lg">
-                                    <h3 className="text-lg font-semibold mb-4 flex items-center">
-                                        <ShoppingCart className="h-5 w-5 mr-2" />
+                                <div className="bg-blue-50 p-3 sm:p-4 rounded-lg">
+                                    <h3 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4 flex items-center">
+                                        <ShoppingCart className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
                                         Carrito de Compra ({cart.length} items)
                                     </h3>
 
-                                    <div className="space-y-3">
+                                    <div className="cart-scroll-area space-y-2 sm:space-y-3">
                                         {cart.map((item) => (
-                                            <div key={item.snack_id} className="flex items-center justify-between bg-white p-3 rounded-lg shadow-sm">
-                                                <div className="flex-1">
-                                                    <div className="font-semibold">{item.snack.name}</div>
-                                                    <div className="text-sm text-gray-600">
+                                            <div key={item.snack_id} className="cart-item-mobile justify-between bg-white p-3 rounded-lg shadow-sm">
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="font-semibold text-sm sm:text-base truncate">{item.snack.name}</div>
+                                                    <div className="text-xs sm:text-sm text-gray-600">
                                                         {formatCurrency(item.snack.unit_sale_price)} x {item.quantity}
                                                     </div>
                                                 </div>
 
-                                                <div className="flex items-center space-x-3">
-                                                    <Input
-                                                        type="number"
-                                                        min="1"
-                                                        max={item.snack.stock}
-                                                        value={item.quantity}
-                                                        onChange={(e) => updateCartItemQuantity(item.snack_id, parseFloat(e.target.value) || 1)}
-                                                        className="w-20"
-                                                        enableNumericHandling
-                                                    />
+                                                <div className="flex items-center space-x-2 sm:space-x-3">
+                                                    <div className="flex items-center space-x-1 sm:space-x-2">
+                                                        <span className="text-xs sm:text-sm text-gray-500 hidden sm:inline">Cant:</span>
+                                                        <Input
+                                                            type="number"
+                                                            min="1"
+                                                            max={item.snack.stock}
+                                                            value={item.quantity}
+                                                            onChange={(e) => updateCartItemQuantity(item.snack_id, parseFloat(e.target.value) || 1)}
+                                                            className="w-16 sm:w-20 text-xs sm:text-sm"
+                                                            enableNumericHandling
+                                                        />
+                                                    </div>
 
-                                                    <div className="text-right">
-                                                        <div className="font-semibold">{formatCurrency(item.subtotal)}</div>
+                                                    <div className="text-right min-w-0">
+                                                        <div className="font-semibold text-sm sm:text-base">{formatCurrency(item.subtotal)}</div>
                                                     </div>
 
                                                     <Button
@@ -434,16 +441,16 @@ export default function SalesPage() {
                                                         variant="ghost"
                                                         size="sm"
                                                         onClick={() => removeFromCart(item.snack_id)}
-                                                        className="text-red-600 hover:bg-red-50"
+                                                        className="text-red-600 hover:bg-red-50 p-1 sm:p-2"
                                                     >
-                                                        <Trash2 className="h-4 w-4" />
+                                                        <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
                                                     </Button>
                                                 </div>
                                             </div>
                                         ))}
 
-                                        <div className="border-t pt-3">
-                                            <div className="flex justify-between items-center text-lg font-bold">
+                                        <div className="border-t pt-2 sm:pt-3">
+                                            <div className="flex justify-between items-center text-base sm:text-lg font-bold">
                                                 <span>Total:</span>
                                                 <span>{formatCurrency(getCartTotal())}</span>
                                             </div>
@@ -455,18 +462,18 @@ export default function SalesPage() {
                             {/* Payment Status */}
                             <div className="space-y-3">
                                 <label className="text-sm font-medium text-gray-700">Estado de Pago</label>
-                                <div className="flex space-x-4">
+                                <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
                                     <button
                                         type="button"
                                         onClick={() => setPaid(1)}
-                                        className={`flex-1 flex items-center justify-center space-x-3 py-4 px-6 rounded-xl border-2 transition-all duration-300 ${paid === 1
+                                        className={`flex-1 flex items-center justify-center space-x-2 sm:space-x-3 py-3 sm:py-4 px-4 sm:px-6 rounded-xl border-2 transition-all duration-300 ${paid === 1
                                             ? 'border-green-500 bg-green-50 text-green-700 shadow-lg shadow-green-100'
                                             : 'border-gray-200 bg-white text-gray-500 hover:border-green-300 hover:bg-green-25 hover:shadow-md'
                                             }`}
                                     >
-                                        <CheckCircle className={`w-5 h-5 transition-all duration-300 ${paid === 1 ? 'text-green-600' : 'text-gray-400'}`} />
+                                        <CheckCircle className={`w-4 h-4 sm:w-5 sm:h-5 transition-all duration-300 ${paid === 1 ? 'text-green-600' : 'text-gray-400'}`} />
                                         <div className="text-center">
-                                            <div className="font-semibold">Pagado</div>
+                                            <div className="font-semibold text-sm sm:text-base">Pagado</div>
                                             <div className="text-xs opacity-75">Pago inmediato</div>
                                         </div>
                                     </button>
@@ -474,25 +481,25 @@ export default function SalesPage() {
                                     <button
                                         type="button"
                                         onClick={() => setPaid(0)}
-                                        className={`flex-1 flex items-center justify-center space-x-3 py-4 px-6 rounded-xl border-2 transition-all duration-300 ${paid === 0
+                                        className={`flex-1 flex items-center justify-center space-x-2 sm:space-x-3 py-3 sm:py-4 px-4 sm:px-6 rounded-xl border-2 transition-all duration-300 ${paid === 0
                                             ? 'border-red-500 bg-red-50 text-red-700 shadow-lg shadow-red-100'
                                             : 'border-gray-200 bg-white text-gray-500 hover:border-red-300 hover:bg-red-25 hover:shadow-md'
                                             }`}
                                     >
-                                        <Clock className={`w-5 h-5 transition-all duration-300 ${paid === 0 ? 'text-red-600' : 'text-gray-400'}`} />
+                                        <Clock className={`w-4 h-4 sm:w-5 sm:h-5 transition-all duration-300 ${paid === 0 ? 'text-red-600' : 'text-gray-400'}`} />
                                         <div className="text-center">
-                                            <div className="font-semibold">Pendiente</div>
+                                            <div className="font-semibold text-sm sm:text-base">Pendiente</div>
                                             <div className="text-xs opacity-75">Deuda futura</div>
                                         </div>
                                     </button>
                                 </div>
                             </div>
 
-                            <div className="flex justify-end space-x-3">
-                                <Button type="button" variant="secondary" onClick={resetForm}>
+                            <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-3 pt-4">
+                                <Button type="button" variant="secondary" onClick={resetForm} className="w-full sm:w-auto">
                                     Cancelar
                                 </Button>
-                                <Button type="submit" disabled={cart.length === 0 || !selectedPersonId}>
+                                <Button type="submit" disabled={cart.length === 0 || !selectedPersonId} className="w-full sm:w-auto">
                                     Registrar Venta ({formatCurrency(getCartTotal())})
                                 </Button>
                             </div>
@@ -504,7 +511,7 @@ export default function SalesPage() {
                 <div className="space-y-6">
                     <div className="flex flex-col space-y-4">
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
-                            <h2 className="text-2xl font-bold text-slate-900">
+                            <h2 className="text-xl sm:text-2xl font-bold text-slate-900">
                                 Ventas Recientes ({filteredSales.length} resultados)
                             </h2>
                             <SearchBar
@@ -516,47 +523,53 @@ export default function SalesPage() {
                         </div>
 
                         {/* Payment Filter */}
-                        <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                            <div className="flex items-center space-x-2 mb-3">
+                        <div className="bg-gray-50 p-3 sm:p-4 rounded-lg border border-gray-200">
+                            <div className="flex items-center space-x-2 mb-2 sm:mb-3">
                                 <Filter className="h-4 w-4 text-gray-600" />
                                 <span className="text-sm font-semibold text-gray-700">Filtrar por Estado de Pago</span>
                             </div>
-                            <div className="flex flex-wrap gap-3">
+                            <div className="flex flex-wrap gap-2 sm:gap-3">
                                 <Button
                                     variant={paymentFilter === 'all' ? 'primary' : 'secondary'}
                                     size="sm"
                                     onClick={() => handlePaymentFilterChange('all')}
-                                    className={`text-sm transition-all duration-200 ${paymentFilter === 'all'
+                                    className={`text-xs sm:text-sm transition-all duration-200 ${paymentFilter === 'all'
                                         ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-md'
                                         : 'hover:bg-blue-50 hover:border-blue-300'
                                         }`}
                                 >
-                                    <Package className="h-4 w-4 mr-2" />
-                                    Todas ({sales.length})
+                                    <Package className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                                    <span className="hidden sm:inline">Todas</span>
+                                    <span className="sm:hidden">Todas</span>
+                                    <span className="ml-1">({sales.length})</span>
                                 </Button>
                                 <Button
                                     variant={paymentFilter === 'paid' ? 'primary' : 'secondary'}
                                     size="sm"
                                     onClick={() => handlePaymentFilterChange('paid')}
-                                    className={`text-sm transition-all duration-200 ${paymentFilter === 'paid'
+                                    className={`text-xs sm:text-sm transition-all duration-200 ${paymentFilter === 'paid'
                                         ? 'bg-green-600 hover:bg-green-700 text-white shadow-md'
                                         : 'hover:bg-green-50 hover:border-green-300 text-green-700'
                                         }`}
                                 >
-                                    <CheckCircle className="h-4 w-4 mr-2" />
-                                    Pagadas ({sales.filter(s => s.paid === 1).length})
+                                    <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                                    <span className="hidden sm:inline">Pagadas</span>
+                                    <span className="sm:hidden">Pagadas</span>
+                                    <span className="ml-1">({sales.filter(s => s.paid === 1).length})</span>
                                 </Button>
                                 <Button
                                     variant={paymentFilter === 'unpaid' ? 'primary' : 'secondary'}
                                     size="sm"
                                     onClick={() => handlePaymentFilterChange('unpaid')}
-                                    className={`text-sm transition-all duration-200 ${paymentFilter === 'unpaid'
+                                    className={`text-xs sm:text-sm transition-all duration-200 ${paymentFilter === 'unpaid'
                                         ? 'bg-red-600 hover:bg-red-700 text-white shadow-md'
                                         : 'hover:bg-red-50 hover:border-red-300 text-red-700'
                                         }`}
                                 >
-                                    <AlertCircle className="h-4 w-4 mr-2" />
-                                    No Pagadas ({sales.filter(s => s.paid === 0).length})
+                                    <AlertCircle className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                                    <span className="hidden sm:inline">No Pagadas</span>
+                                    <span className="sm:hidden">No Pagadas</span>
+                                    <span className="ml-1">({sales.filter(s => s.paid === 0).length})</span>
                                 </Button>
                             </div>
                         </div>
@@ -564,25 +577,25 @@ export default function SalesPage() {
 
                     {paginatedSales.map((sale) => (
                         <Card key={sale.id_sale} className="group hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-2">
-                            <div className="flex justify-between items-start">
-                                <div className="flex items-center space-x-4">
+                            <div className="flex flex-col sm:flex-row justify-between items-start space-y-3 sm:space-y-0">
+                                <div className="flex items-start space-x-3 sm:space-x-4 w-full sm:w-auto">
                                     <div className="flex-shrink-0">
-                                        <div className="h-14 w-14 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center shadow-lg group-hover:shadow-xl transition-all duration-300">
-                                            <DollarSign className="h-7 w-7 text-white group-hover:scale-110 transition-transform duration-300" />
+                                        <div className="h-12 w-12 sm:h-14 sm:w-14 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center shadow-lg group-hover:shadow-xl transition-all duration-300">
+                                            <DollarSign className="h-6 w-6 sm:h-7 sm:w-7 text-white group-hover:scale-110 transition-transform duration-300" />
                                         </div>
                                     </div>
-                                    <div className="flex-1">
+                                    <div className="flex-1 min-w-0">
                                         <div className="flex items-center space-x-2 mb-1">
                                             <User className="h-4 w-4 text-gray-400" />
-                                            <span className="font-bold text-slate-900">{getPersonName(sale.person_id)}</span>
+                                            <span className="font-bold text-slate-900 text-sm sm:text-base truncate">{getPersonName(sale.person_id)}</span>
                                         </div>
 
                                         {/* Show items */}
                                         <div className="space-y-1">
                                             {sale.items?.map((item) => (
-                                                <div key={item.id_sale_item} className="flex items-center space-x-2 text-sm">
-                                                    <Package className="h-3 w-3 text-gray-400" />
-                                                    <span className="text-slate-600">
+                                                <div key={item.id_sale_item} className="flex items-center space-x-2 text-xs sm:text-sm">
+                                                    <Package className="h-3 w-3 text-gray-400 flex-shrink-0" />
+                                                    <span className="text-slate-600 truncate">
                                                         {item.snack?.name} x{item.quantity} = {formatCurrency(item.subtotal)}
                                                     </span>
                                                 </div>
@@ -591,25 +604,26 @@ export default function SalesPage() {
                                     </div>
                                 </div>
 
-                                <div className="text-right">
-                                    <div className="text-lg font-semibold text-gray-900">
+                                <div className="text-right w-full sm:w-auto">
+                                    <div className="text-base sm:text-lg font-semibold text-gray-900">
                                         {formatCurrency(sale.total)}
                                     </div>
-                                    <div className="text-sm text-gray-500">
+                                    <div className="text-xs sm:text-sm text-gray-500">
                                         {sale.items?.length || 0} items
                                     </div>
-                                    <div className={`text-sm font-medium ${sale.paid === 1 ? 'text-green-600' : 'text-red-600'}`}>
+                                    <div className={`text-xs sm:text-sm font-medium ${sale.paid === 1 ? 'text-green-600' : 'text-red-600'}`}>
                                         {sale.paid === 1 ? 'Pagado' : 'No pagado'}
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="text-xs text-gray-500 mt-2">
-                                Venta: {(() => {
+                            <div className="text-xs text-gray-500 mt-2 flex flex-col sm:flex-row sm:space-x-2">
+                                <span>Venta: {(() => {
                                     const [year, month, day] = sale.sale_date.split('-').map(Number);
                                     return `${day}/${month}/${year}`;
-                                })()} |
-                                Registro: {new Date(sale.created_at).toLocaleString('es-ES')}
+                                })()}</span>
+                                <span className="hidden sm:inline">|</span>
+                                <span>Registro: {new Date(sale.created_at).toLocaleString('es-ES')}</span>
                             </div>
                         </Card>
                     ))}
