@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { Card } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { Navigation } from '@/components/layout/Navigation';
 import { PublicSnacksView } from '@/components/public/PublicSnacksView';
@@ -13,9 +12,7 @@ import {
   ShoppingCart,
   CreditCard,
   BarChart3,
-  Eye,
-  Shield,
-  LogIn
+  Shield
 } from 'lucide-react';
 
 const features = [

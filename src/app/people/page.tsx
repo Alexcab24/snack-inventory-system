@@ -8,8 +8,8 @@ import { Input } from '@/components/ui/Input';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { Pagination } from '@/components/ui/Pagination';
-import { Plus, Edit, Trash2, X, User, RefreshCw } from 'lucide-react';
-import { personApi } from '@/lib/api';
+import { Plus, Edit, Trash2, X, User, RefreshCw, DollarSign } from 'lucide-react';
+import { personApi, debtApi } from '@/lib/api';
 import { useQueryParams, getPaginatedData, getTotalPages, filterBySearch } from '@/lib/utils';
 import { AdminLayout } from '@/components/layout/AdminLayout';
 import type { Person, PersonWithDebt, CreatePersonData } from '@/types';
@@ -23,6 +23,10 @@ export default function PeoplePage() {
         name: '',
     });
     const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; person: Person | null }>({
+        isOpen: false,
+        person: null
+    });
+    const [payAllDebtsModal, setPayAllDebtsModal] = useState<{ isOpen: boolean; person: PersonWithDebt | null }>({
         isOpen: false,
         person: null
     });
@@ -142,6 +146,31 @@ export default function PeoplePage() {
         }
     };
 
+    const handlePayAllDebtsClick = (person: PersonWithDebt) => {
+        setPayAllDebtsModal({ isOpen: true, person });
+    };
+
+    const handlePayAllDebtsConfirm = async () => {
+        if (!payAllDebtsModal.person) return;
+
+        try {
+            await debtApi.markAllDebtsAsPaidForPerson(payAllDebtsModal.person.id_person);
+            toast.success(`Todas las deudas de ${payAllDebtsModal.person.name} han sido marcadas como pagadas`);
+            loadPeople();
+        } catch (error) {
+            console.error('Error paying all debts:', error);
+
+            if (error && typeof error === 'object' && 'message' in error) {
+                const errorMessage = (error as { message: string }).message;
+                toast.error(errorMessage);
+            } else {
+                toast.error('Error al marcar las deudas como pagadas');
+            }
+        } finally {
+            setPayAllDebtsModal({ isOpen: false, person: null });
+        }
+    };
+
     const resetForm = () => {
         setFormData({ name: '' });
         setEditingPerson(null);
@@ -250,6 +279,17 @@ export default function PeoplePage() {
                                     </div>
                                 </div>
                                 <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    {person.total_debt > 0 && (
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => handlePayAllDebtsClick(person)}
+                                            className="hover:bg-green-50 hover:text-green-600"
+                                            title="Marcar todas las deudas como pagadas"
+                                        >
+                                            <DollarSign className="h-4 w-4" />
+                                        </Button>
+                                    )}
                                     <Button
                                         variant="ghost"
                                         size="sm"
@@ -301,6 +341,18 @@ export default function PeoplePage() {
                     confirmText="Eliminar"
                     cancelText="Cancelar"
                     variant="danger"
+                />
+
+                {/* Pay All Debts Confirmation Modal */}
+                <ConfirmModal
+                    isOpen={payAllDebtsModal.isOpen}
+                    onClose={() => setPayAllDebtsModal({ isOpen: false, person: null })}
+                    onConfirm={handlePayAllDebtsConfirm}
+                    title="Marcar Todas las Deudas como Pagadas"
+                    message={`¿Estás seguro de que quieres marcar todas las deudas de "${payAllDebtsModal.person?.name}" como pagadas? Esta acción marcará una deuda total de $${payAllDebtsModal.person?.total_debt.toFixed(2)} como pagada.`}
+                    confirmText="Marcar como Pagadas"
+                    cancelText="Cancelar"
+                    variant="info"
                 />
             </div>
         </AdminLayout>

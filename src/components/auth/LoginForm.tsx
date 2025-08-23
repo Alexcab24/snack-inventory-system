@@ -37,7 +37,7 @@ export function LoginForm({ onLoginSuccess }: LoginFormProps) {
             if (onLoginSuccess) {
                 onLoginSuccess();
             }
-        } catch (error) {
+        } catch {
             toast.error('Credenciales inválidas');
         } finally {
             setLoading(false);

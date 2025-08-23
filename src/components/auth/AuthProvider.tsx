@@ -2,9 +2,7 @@
 
 import { createContext, useContext, ReactNode } from 'react';
 import { User } from '@/lib/auth';
-import { LoginForm } from './LoginForm';
 import { useAuth as useAuthHook } from '@/hooks/useAuth';
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 
 interface AuthContextType {
     user: User | null;

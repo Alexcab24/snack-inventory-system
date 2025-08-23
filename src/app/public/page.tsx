@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Package, Search, ShoppingCart, LogIn } from 'lucide-react';
+import { Package, Search, LogIn } from 'lucide-react';
 import { snackApi } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 import Link from 'next/link';

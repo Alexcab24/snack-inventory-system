@@ -746,6 +746,58 @@ export const debtApi = {
         } catch (e) {
             console.error('Activity log failed (debt delete):', e);
         }
+    },
+
+    async markAllDebtsAsPaidForPerson(personId: string): Promise<void> {
+        // Get all pending debts for the person
+        const { data: debts, error: fetchError } = await supabase
+            .from('debt')
+            .select(`
+                id_debt,
+                amount,
+                amount_paid,
+                sale:id_sale(
+                    person_id
+                )
+            `)
+            .eq('sale.person_id', personId)
+            .eq('paid', 'pending');
+
+        if (fetchError) throw fetchError;
+
+        if (!debts || debts.length === 0) {
+            throw new Error('No hay deudas pendientes para esta persona');
+        }
+
+        // Mark all debts as paid by setting amount_paid equal to amount
+        for (const debt of debts) {
+            const { error: updateError } = await supabase
+                .from('debt')
+                .update({
+                    paid: 'paid',
+                    amount_paid: debt.amount
+                })
+                .eq('id_debt', debt.id_debt);
+
+            if (updateError) throw updateError;
+        }
+
+        // Log the action
+        try {
+            await logApi.createLog({
+                entity_type: 'person',
+                entity_id: personId,
+                action: 'todas_deudas_pagadas',
+                description: `Todas las deudas marcadas como pagadas`,
+                details: {
+                    person_id: personId,
+                    debts_count: debts.length,
+                    total_amount: debts.reduce((sum, debt) => sum + (debt.amount - (debt.amount_paid || 0)), 0)
+                }
+            });
+        } catch (e) {
+            console.error('Activity log failed (mark all debts paid):', e);
+        }
     }
 };
 
