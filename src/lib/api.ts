@@ -27,13 +27,18 @@ export const snackApi = {
     async create(snackData: CreateSnackData): Promise<Snack> {
         // Calculate unit cost, profit margin, and stock
         const unit_cost = snackData.container_cost / snackData.units_per_container;
-        const profit_margin_per_unit = snackData.unit_sale_price - unit_cost;
+        // If sale is by combo, derive unit_sale_price from combo
+        const effectiveUnitSalePrice = snackData.sale_type === 'combo'
+            ? ((snackData.combo_price || 0) / (snackData.combo_units || 1))
+            : snackData.unit_sale_price;
+        const profit_margin_per_unit = effectiveUnitSalePrice - unit_cost;
         const stock = snackData.containers_purchased * snackData.units_per_container;
 
         const { data, error } = await supabase
             .from('snack')
             .insert({
                 ...snackData,
+                unit_sale_price: effectiveUnitSalePrice,
                 unit_cost,
                 profit_margin_per_unit,
                 stock
@@ -87,7 +92,10 @@ export const snackApi = {
 
         // Calculate unit cost, profit margin, and stock with the merged data
         const unit_cost = updatedData.container_cost / updatedData.units_per_container;
-        const profit_margin_per_unit = updatedData.unit_sale_price - unit_cost;
+        const effectiveUnitSalePrice = updatedData.sale_type === 'combo'
+            ? ((updatedData.combo_price || 0) / (updatedData.combo_units || 1))
+            : updatedData.unit_sale_price;
+        const profit_margin_per_unit = effectiveUnitSalePrice - unit_cost;
         const stock = updatedData.containers_purchased * updatedData.units_per_container;
 
         console.log('API: Calculated unit_cost:', unit_cost);
@@ -98,6 +106,7 @@ export const snackApi = {
             .from('snack')
             .update({
                 ...snackData,
+                unit_sale_price: effectiveUnitSalePrice,
                 unit_cost,
                 profit_margin_per_unit,
                 stock

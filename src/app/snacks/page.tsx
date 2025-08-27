@@ -21,10 +21,13 @@ export default function SnacksPage() {
     const [formData, setFormData] = useState<CreateSnackData>({
         name: '',
         purchase_type: 'box',
+        sale_type: 'unit',
         units_per_container: 0,
         container_cost: 0,
         containers_purchased: 0,
         unit_sale_price: 0,
+        combo_units: undefined,
+        combo_price: undefined,
     });
     const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; snack: Snack | null }>({
         isOpen: false,
@@ -51,28 +54,53 @@ export default function SnacksPage() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        if (!formData.name || formData.units_per_container <= 0 || formData.container_cost <= 0 || formData.containers_purchased <= 0 || formData.unit_sale_price <= 0) {
+        if (!formData.name || formData.units_per_container <= 0 || formData.container_cost <= 0 || formData.containers_purchased <= 0) {
             toast.error('Por favor completa todos los campos con valores válidos');
             return;
         }
 
-        const unitCost = formData.container_cost / formData.units_per_container;
-        if (formData.unit_sale_price <= unitCost) {
-            toast.error('El precio de venta por unidad debe ser mayor al costo por unidad');
-            return;
+        // Validación por tipo de venta
+        if (formData.sale_type === 'unit') {
+            if (!formData.unit_sale_price || formData.unit_sale_price <= 0) {
+                toast.error('Ingresa un precio de venta por unidad válido');
+                return;
+            }
+            const unitCost = formData.container_cost / formData.units_per_container;
+            if (formData.unit_sale_price <= unitCost) {
+                toast.error('El precio de venta por unidad debe ser mayor al costo por unidad');
+                return;
+            }
+        } else {
+            if (!formData.combo_units || formData.combo_units <= 0 || !formData.combo_price || formData.combo_price <= 0) {
+                toast.error('Ingresa unidades por combo y precio de combo válidos');
+                return;
+            }
+            const unitCost = formData.container_cost / formData.units_per_container;
+            const derivedUnit = formData.combo_price / formData.combo_units;
+            if (derivedUnit <= unitCost) {
+                toast.error('El precio por combo no cubre el costo por unidad');
+                return;
+            }
         }
 
         try {
             console.log('Submitting form data:', formData);
             console.log('Editing snack:', editingSnack);
 
+            const payload: CreateSnackData = {
+                ...formData,
+                unit_sale_price: formData.sale_type === 'combo' && formData.combo_units && formData.combo_price
+                    ? (formData.combo_price / formData.combo_units)
+                    : formData.unit_sale_price,
+            };
+
             if (editingSnack) {
                 console.log('Updating snack with ID:', editingSnack.id_snack);
-                await snackApi.update(editingSnack.id_snack, formData);
+                await snackApi.update(editingSnack.id_snack, payload);
                 toast.success('Snack actualizado exitosamente');
             } else {
                 console.log('Creating new snack');
-                await snackApi.create(formData);
+                await snackApi.create(payload);
                 toast.success('Snack creado exitosamente');
             }
 
@@ -90,10 +118,13 @@ export default function SnacksPage() {
         setFormData({
             name: snack.name,
             purchase_type: snack.purchase_type as 'box' | 'bag',
+            sale_type: snack.sale_type,
             units_per_container: snack.units_per_container,
             container_cost: snack.container_cost,
             containers_purchased: snack.containers_purchased,
             unit_sale_price: snack.unit_sale_price,
+            combo_units: snack.combo_units,
+            combo_price: snack.combo_price,
         });
         setShowForm(true);
     };
@@ -118,7 +149,7 @@ export default function SnacksPage() {
     };
 
     const resetForm = () => {
-        setFormData({ name: '', purchase_type: 'box', units_per_container: 0, container_cost: 0, containers_purchased: 0, unit_sale_price: 0 });
+        setFormData({ name: '', purchase_type: 'box', sale_type: 'unit', units_per_container: 0, container_cost: 0, containers_purchased: 0, unit_sale_price: 0, combo_units: undefined, combo_price: undefined });
         setEditingSnack(null);
         setShowForm(false);
     };
@@ -183,6 +214,18 @@ export default function SnacksPage() {
                                 required
                             />
 
+                            {/* Tipo de Venta */}
+                            <Select
+                                label="Tipo de Venta"
+                                value={formData.sale_type}
+                                onChange={(value) => setFormData({ ...formData, sale_type: value as 'unit' | 'combo' })}
+                                options={[
+                                    { value: 'unit', label: 'Por unidad', description: 'Vender por unidad' },
+                                    { value: 'combo', label: 'Por combo', description: 'Vender varias unidades por un precio fijo' },
+                                ]}
+                                required
+                            />
+
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <Input
                                     label={`Unidades por ${formData.purchase_type === 'box' ? 'Caja' : 'Funda'}`}
@@ -219,18 +262,43 @@ export default function SnacksPage() {
                                     enableNumericHandling
                                     required
                                 />
-
-                                <Input
-                                    label="Precio de Venta por Unidad ($)"
-                                    type="number"
-                                    step="0.01"
-                                    min="0"
-                                    value={formData.unit_sale_price}
-                                    onChange={(e) => setFormData({ ...formData, unit_sale_price: parseFloat(e.target.value) || 0 })}
-                                    placeholder="0.00"
-                                    enableNumericHandling
-                                    required
-                                />
+                                {formData.sale_type === 'unit' ? (
+                                    <Input
+                                        label="Precio de Venta por Unidad ($)"
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        value={formData.unit_sale_price}
+                                        onChange={(e) => setFormData({ ...formData, unit_sale_price: parseFloat(e.target.value) || 0 })}
+                                        placeholder="0.00"
+                                        enableNumericHandling
+                                        required
+                                    />
+                                ) : (
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <Input
+                                            label="Unidades por Combo"
+                                            type="number"
+                                            min="1"
+                                            value={formData.combo_units || 0}
+                                            onChange={(e) => setFormData({ ...formData, combo_units: parseFloat(e.target.value) || 0 })}
+                                            placeholder="3"
+                                            enableNumericHandling
+                                            required
+                                        />
+                                        <Input
+                                            label="Precio por Combo ($)"
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            value={formData.combo_price || 0}
+                                            onChange={(e) => setFormData({ ...formData, combo_price: parseFloat(e.target.value) || 0 })}
+                                            placeholder="10.00"
+                                            enableNumericHandling
+                                            required
+                                        />
+                                    </div>
+                                )}
                             </div>
 
                             {/* Stock calculado automáticamente - no editable */}
@@ -250,7 +318,7 @@ export default function SnacksPage() {
                             </div>
 
                             {/* Cálculo en tiempo real del margen de ganancia */}
-                            {formData.units_per_container > 0 && formData.container_cost > 0 && formData.unit_sale_price > 0 && formData.containers_purchased > 0 && (
+                            {formData.units_per_container > 0 && formData.container_cost > 0 && formData.containers_purchased > 0 && (
                                 <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
                                     <div className="space-y-2">
                                         <div className="flex justify-between items-center">
@@ -259,22 +327,55 @@ export default function SnacksPage() {
                                                 {formatCurrency(formData.container_cost / formData.units_per_container)}
                                             </span>
                                         </div>
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-blue-700 text-sm font-medium">Ganancia por Unidad:</span>
-                                            <span className={`font-bold ${formData.unit_sale_price - (formData.container_cost / formData.units_per_container) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                                {formatCurrency(formData.unit_sale_price - (formData.container_cost / formData.units_per_container))}
-                                            </span>
-                                        </div>
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-blue-700 text-sm font-medium">Ganancia Total Estimada:</span>
-                                            <span className={`font-bold text-lg ${(formData.unit_sale_price - (formData.container_cost / formData.units_per_container)) * (formData.units_per_container * formData.containers_purchased) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                                {formatCurrency((formData.unit_sale_price - (formData.container_cost / formData.units_per_container)) * (formData.units_per_container * formData.containers_purchased))}
-                                            </span>
-                                        </div>
+                                        {formData.sale_type === 'unit' ? (
+                                            <>
+                                                <div className="flex justify-between items-center">
+                                                    <span className="text-blue-700 text-sm font-medium">Ganancia por Unidad:</span>
+                                                    <span className={`font-bold ${formData.unit_sale_price - (formData.container_cost / formData.units_per_container) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                        {formatCurrency(formData.unit_sale_price - (formData.container_cost / formData.units_per_container))}
+                                                    </span>
+                                                </div>
+                                                <div className="flex justify-between items-center">
+                                                    <span className="text-blue-700 text-sm font-medium">Ganancia Total Estimada:</span>
+                                                    <span className={`font-bold text-lg ${(formData.unit_sale_price - (formData.container_cost / formData.units_per_container)) * (formData.units_per_container * formData.containers_purchased) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                        {formatCurrency((formData.unit_sale_price - (formData.container_cost / formData.units_per_container)) * (formData.units_per_container * formData.containers_purchased))}
+                                                    </span>
+                                                </div>
+                                            </>
+                                        ) : (
+                                            formData.combo_units && formData.combo_price ? (
+                                                <>
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-blue-700 text-sm font-medium">Precio por Unidad (derivado):</span>
+                                                        <span className="font-bold text-blue-600">
+                                                            {formatCurrency((formData.combo_price / formData.combo_units))}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-blue-700 text-sm font-medium">Costo por Combo:</span>
+                                                        <span className="font-bold text-blue-600">
+                                                            {formatCurrency((formData.container_cost / formData.units_per_container) * formData.combo_units)}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-blue-700 text-sm font-medium">Ganancia por Combo:</span>
+                                                        <span className={`font-bold ${(formData.combo_price - ((formData.container_cost / formData.units_per_container) * formData.combo_units)) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                            {formatCurrency(formData.combo_price - ((formData.container_cost / formData.units_per_container) * formData.combo_units))}
+                                                        </span>
+                                                    </div>
+                                                </>
+                                            ) : null
+                                        )}
                                     </div>
-                                    <div className="text-xs text-blue-600 mt-2">
-                                        (Precio de venta por unidad - Costo por unidad) × Stock total
-                                    </div>
+                                    {formData.sale_type === 'unit' ? (
+                                        <div className="text-xs text-blue-600 mt-2">
+                                            (Precio de venta por unidad - Costo por unidad) × Stock total
+                                        </div>
+                                    ) : (
+                                        <div className="text-xs text-blue-600 mt-2">
+                                            Precio unitario derivado = Precio combo ÷ Unidades por combo
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
@@ -365,6 +466,12 @@ export default function SnacksPage() {
                                     <span className="text-slate-600 text-sm font-medium">Precio de Venta por Unidad:</span>
                                     <span className="font-bold text-slate-900">{formatCurrency(snack.unit_sale_price)}</span>
                                 </div>
+                                {snack.sale_type === 'combo' && snack.combo_units && snack.combo_price && (
+                                    <div className="flex justify-between items-center py-2 px-3 bg-gray-50 rounded-lg">
+                                        <span className="text-slate-600 text-sm font-medium">Venta por Combo:</span>
+                                        <span className="font-bold text-slate-900">{snack.combo_units} unidades x {formatCurrency(snack.combo_price)}</span>
+                                    </div>
+                                )}
                                 <div className="flex justify-between items-center py-2 px-3 bg-green-50 rounded-lg border border-green-200">
                                     <span className="text-green-700 text-sm font-medium">Stock Disponible:</span>
                                     <span className={`font-bold text-lg ${snack.stock > 0 ? 'text-green-600' : 'text-red-600'}`}>

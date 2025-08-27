@@ -3,6 +3,10 @@ export interface Snack {
     name: string;
     // Purchase information
     purchase_type: 'box' | 'bag'; // 'box' = caja, 'bag' = funda
+    // Sale information
+    sale_type: 'unit' | 'combo';
+    combo_units?: number; // number of units per combo when sale_type = 'combo'
+    combo_price?: number; // price per combo when sale_type = 'combo'
     units_per_container: number; // units per box or bag
     container_cost: number; // cost of box or bag
     containers_purchased: number; // cantidad de cajas/fundas compradas
@@ -83,10 +87,13 @@ export interface ActivityLog {
 export interface CreateSnackData {
     name: string;
     purchase_type: 'box' | 'bag';
+    sale_type: 'unit' | 'combo';
+    combo_units?: number;
+    combo_price?: number;
     units_per_container: number;
     container_cost: number;
     containers_purchased: number; // Cantidad de cajas/fundas compradas
-    unit_sale_price: number;
+    unit_sale_price: number; // For sale_type = 'combo', derived from combo_price / combo_units
 }
 
 export interface CreatePersonData {

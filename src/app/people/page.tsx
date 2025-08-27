@@ -279,7 +279,7 @@ export default function PeoplePage() {
                                     </div>
                                 </div>
                                 <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    {person.total_debt > 0 && (
+                                    {/* {person.total_debt > 0 && (
                                         <Button
                                             variant="ghost"
                                             size="sm"
@@ -289,7 +289,7 @@ export default function PeoplePage() {
                                         >
                                             <DollarSign className="h-4 w-4" />
                                         </Button>
-                                    )}
+                                    )} */}
                                     <Button
                                         variant="ghost"
                                         size="sm"

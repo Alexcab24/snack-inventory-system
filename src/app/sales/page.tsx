@@ -18,7 +18,8 @@ import type { Sale, Snack, Person, CreateSaleData, CreateSaleItemData } from '@/
 
 interface CartItem extends CreateSaleItemData {
     snack: Snack;
-    subtotal: number;
+    subtotal: number; // uses combo_price if combo, else unit price
+    uiQuantity: number; // combos if sale_type=combo, units otherwise
 }
 
 export default function SalesPage() {
@@ -143,37 +144,47 @@ export default function SalesPage() {
             return;
         }
 
+        const isCombo = snack.sale_type === 'combo' && snack.combo_units && snack.combo_price;
+        const requiredUnits = isCombo ? itemQuantity * (snack.combo_units as number) : itemQuantity;
+
         // Check if item already exists in cart
         const existingItemIndex = cart.findIndex(item => item.snack_id === selectedSnackId);
 
         if (existingItemIndex >= 0) {
             // Update existing item
             const updatedCart = [...cart];
-            const newQuantity = updatedCart[existingItemIndex].quantity + itemQuantity;
+            const currentItem = updatedCart[existingItemIndex];
 
-            if (newQuantity > snack.stock) {
+            // Convert to units properly
+            const newUnits = currentItem.quantity + requiredUnits;
+            if (newUnits > snack.stock) {
                 toast.error(`Stock insuficiente. Solo hay ${snack.stock} unidades disponibles de ${snack.name}`);
                 return;
             }
 
+            const newUiQuantity = currentItem.uiQuantity + itemQuantity; // add combos or units accordingly
+            const newSubtotal = isCombo ? (snack.combo_price as number) * newUiQuantity : snack.unit_sale_price * newUiQuantity;
+
             updatedCart[existingItemIndex] = {
-                ...updatedCart[existingItemIndex],
-                quantity: newQuantity,
-                subtotal: snack.unit_sale_price * newQuantity
+                ...currentItem,
+                quantity: newUnits, // always in units for API
+                uiQuantity: newUiQuantity,
+                subtotal: newSubtotal
             };
             setCart(updatedCart);
         } else {
             // Add new item
-            if (itemQuantity > snack.stock) {
+            if (requiredUnits > snack.stock) {
                 toast.error(`Stock insuficiente. Solo hay ${snack.stock} unidades disponibles de ${snack.name}`);
                 return;
             }
 
             setCart([...cart, {
                 snack_id: selectedSnackId,
-                quantity: itemQuantity,
+                quantity: requiredUnits, // units for API
                 snack,
-                subtotal: snack.unit_sale_price * itemQuantity
+                uiQuantity: itemQuantity,
+                subtotal: isCombo ? (snack.combo_price as number) * itemQuantity : snack.unit_sale_price * itemQuantity
             }]);
         }
 
@@ -195,14 +206,21 @@ export default function SalesPage() {
         const item = cart.find(item => item.snack_id === snackId);
         if (!item) return;
 
-        if (newQuantity > item.snack.stock) {
+        const isCombo = item.snack.sale_type === 'combo' && item.snack.combo_units && item.snack.combo_price;
+        const requiredUnits = isCombo ? newQuantity * (item.snack.combo_units as number) : newQuantity;
+        if (requiredUnits > item.snack.stock) {
             toast.error(`Stock insuficiente. Solo hay ${item.snack.stock} unidades disponibles de ${item.snack.name}`);
             return;
         }
 
         setCart(cart.map(item =>
             item.snack_id === snackId
-                ? { ...item, quantity: newQuantity, subtotal: item.snack.unit_sale_price * newQuantity }
+                ? {
+                    ...item,
+                    quantity: requiredUnits, // units for API
+                    uiQuantity: newQuantity,
+                    subtotal: isCombo ? (item.snack.combo_price as number) * newQuantity : item.snack.unit_sale_price * newQuantity
+                }
                 : item
         ));
     };
@@ -368,7 +386,9 @@ export default function SalesPage() {
                                             options={snacks.filter(s => s.stock > 0).map(snack => ({
                                                 value: snack.id_snack,
                                                 label: snack.name,
-                                                description: `${formatCurrency(snack.unit_sale_price)} - Stock: ${snack.stock}`,
+                                                description: snack.sale_type === 'combo' && snack.combo_units && snack.combo_price
+                                                    ? `${formatCurrency(snack.combo_price)} (combo x${snack.combo_units}) - Stock: ${snack.stock}`
+                                                    : `${formatCurrency(snack.unit_sale_price)} - Stock: ${snack.stock}`,
                                                 icon: <Package className="h-4 w-4" />
                                             }))}
                                             placeholder="Seleccionar snack"
@@ -414,7 +434,9 @@ export default function SalesPage() {
                                                 <div className="flex-1 min-w-0">
                                                     <div className="font-semibold text-sm sm:text-base truncate">{item.snack.name}</div>
                                                     <div className="text-xs sm:text-sm text-gray-600">
-                                                        {formatCurrency(item.snack.unit_sale_price)} x {item.quantity}
+                                                        {item.snack.sale_type === 'combo' && item.snack.combo_units && item.snack.combo_price
+                                                            ? `${formatCurrency(item.snack.combo_price)} x ${item.uiQuantity} (combo x${item.snack.combo_units})`
+                                                            : `${formatCurrency(item.snack.unit_sale_price)} x ${item.uiQuantity}`}
                                                     </div>
                                                 </div>
 
@@ -424,8 +446,8 @@ export default function SalesPage() {
                                                         <Input
                                                             type="number"
                                                             min="1"
-                                                            max={item.snack.stock}
-                                                            value={item.quantity}
+                                                            max={item.snack.sale_type === 'combo' && item.snack.combo_units ? Math.floor(item.snack.stock / item.snack.combo_units) : item.snack.stock}
+                                                            value={item.uiQuantity}
                                                             onChange={(e) => updateCartItemQuantity(item.snack_id, parseFloat(e.target.value) || 1)}
                                                             className="w-16 sm:w-20 text-xs sm:text-sm"
                                                             enableNumericHandling
