@@ -7,13 +7,16 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import { IdDisplay } from '@/components/ui/IdDisplay';
 import { Plus, Edit, Trash2, X, Package, Package2, ShoppingBag } from 'lucide-react';
 import { snackApi } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 import { AdminLayout } from '@/components/layout/AdminLayout';
+import { useAuth } from '@/components/auth/AuthProvider';
 import type { Snack, CreateSnackData } from '@/types';
 
 export default function SnacksPage() {
+    const { isAlexcab24 } = useAuth();
     const [snacks, setSnacks] = useState<Snack[]>([]);
     const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
@@ -399,9 +402,12 @@ export default function SnacksPage() {
                                     <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-all duration-300">
                                         <Package className="h-6 w-6 text-white group-hover:scale-110 transition-transform duration-300" />
                                     </div>
-                                    <h3 className="text-lg font-bold text-slate-900 group-hover:text-blue-700 transition-colors">
-                                        {snack.name}
-                                    </h3>
+                                    <div>
+                                        <h3 className="text-lg font-bold text-slate-900 group-hover:text-blue-700 transition-colors">
+                                            {snack.name}
+                                        </h3>
+                                        <IdDisplay id={snack.id_snack} label="Snack ID" showWhen={isAlexcab24} />
+                                    </div>
                                 </div>
                                 <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                     <Button

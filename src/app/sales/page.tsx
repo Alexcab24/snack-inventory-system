@@ -8,12 +8,14 @@ import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { DatePicker } from '@/components/ui/DatePicker';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import { IdDisplay } from '@/components/ui/IdDisplay';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { Pagination } from '@/components/ui/Pagination';
 import { Plus, X, Package, User, DollarSign, RefreshCw, CheckCircle, Clock, Trash2, ShoppingCart, Filter, AlertCircle } from 'lucide-react';
 import { saleApi, snackApi, personApi } from '@/lib/api';
 import { formatCurrency, useQueryParams, getPaginatedData, getTotalPages } from '@/lib/utils';
 import { AdminLayout } from '@/components/layout/AdminLayout';
+import { useAuth } from '@/components/auth/AuthProvider';
 import type { Sale, Snack, Person, CreateSaleData, CreateSaleItemData } from '@/types';
 
 interface CartItem extends CreateSaleItemData {
@@ -23,11 +25,13 @@ interface CartItem extends CreateSaleItemData {
 }
 
 export default function SalesPage() {
+    const { isAlexcab24 } = useAuth();
     const [sales, setSales] = useState<Sale[]>([]);
     const [snacks, setSnacks] = useState<Snack[]>([]);
     const [people, setPeople] = useState<Person[]>([]);
     const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
 
     // Query params
     const { getParam, setMultipleParams } = useQueryParams();
@@ -98,9 +102,10 @@ export default function SalesPage() {
     const [selectedSnackId, setSelectedSnackId] = useState<string>('');
     const [itemQuantity, setItemQuantity] = useState<number>(1);
 
-    const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; saleData: CreateSaleData | null }>({
+    const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; saleData: CreateSaleData | null; isLoading: boolean }>({
         isOpen: false,
-        saleData: null
+        saleData: null,
+        isLoading: false
     });
 
     useEffect(() => {
@@ -232,6 +237,10 @@ export default function SalesPage() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
+        if (submitting) {
+            return; // Prevent double submission
+        }
+
         if (!selectedPersonId) {
             toast.error('Por favor selecciona una persona');
             return;
@@ -241,6 +250,8 @@ export default function SalesPage() {
             toast.error('Por favor agrega al menos un item al carrito');
             return;
         }
+
+        setSubmitting(true);
 
         // Ensure the date is in the correct format for the database
         // Parse the date to ensure it's treated as local date, not UTC
@@ -263,11 +274,15 @@ export default function SalesPage() {
             sale_date: formattedDate
         };
 
-        setConfirmModal({ isOpen: true, saleData });
+        setConfirmModal({ isOpen: true, saleData, isLoading: false });
+        setSubmitting(false); // Reset submitting state
     };
 
     const handleConfirmSale = async () => {
-        if (!confirmModal.saleData) return;
+        if (!confirmModal.saleData || confirmModal.isLoading) return;
+
+        // Set loading state to prevent double submissions
+        setConfirmModal(prev => ({ ...prev, isLoading: true }));
 
         try {
             await saleApi.create(confirmModal.saleData);
@@ -278,7 +293,7 @@ export default function SalesPage() {
             toast.error('Error al registrar venta');
             console.error('Error creating sale:', error);
         } finally {
-            setConfirmModal({ isOpen: false, saleData: null });
+            setConfirmModal({ isOpen: false, saleData: null, isLoading: false });
         }
     };
 
@@ -294,6 +309,7 @@ export default function SalesPage() {
         setSelectedSnackId('');
         setItemQuantity(1);
         setShowForm(false);
+        setSubmitting(false); // Reset submitting state
     };
 
     const getPersonName = (personId: string) => {
@@ -521,8 +537,15 @@ export default function SalesPage() {
                                 <Button type="button" variant="secondary" onClick={resetForm} className="w-full sm:w-auto">
                                     Cancelar
                                 </Button>
-                                <Button type="submit" disabled={cart.length === 0 || !selectedPersonId} className="w-full sm:w-auto">
-                                    Registrar Venta ({formatCurrency(getCartTotal())})
+                                <Button type="submit" disabled={cart.length === 0 || !selectedPersonId || submitting} className="w-full sm:w-auto">
+                                    {submitting ? (
+                                        <div className="flex items-center space-x-2">
+                                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                            <span>Procesando...</span>
+                                        </div>
+                                    ) : (
+                                        `Registrar Venta (${formatCurrency(getCartTotal())})`
+                                    )}
                                 </Button>
                             </div>
                         </form>
@@ -611,15 +634,27 @@ export default function SalesPage() {
                                             <User className="h-4 w-4 text-gray-400" />
                                             <span className="font-bold text-slate-900 text-sm sm:text-base truncate">{getPersonName(sale.person_id)}</span>
                                         </div>
+                                        <div className="flex items-center space-x-2">
+                                            <IdDisplay id={sale.id_sale} label="Sale ID" showWhen={isAlexcab24} className="mb-1" />
+                                            <IdDisplay id={sale.person_id} label="Person ID" showWhen={isAlexcab24} className="mb-1" />
+                                        </div>
 
                                         {/* Show items */}
                                         <div className="space-y-1">
                                             {sale.items?.map((item) => (
-                                                <div key={item.id_sale_item} className="flex items-center space-x-2 text-xs sm:text-sm">
-                                                    <Package className="h-3 w-3 text-gray-400 flex-shrink-0" />
-                                                    <span className="text-slate-600 truncate">
-                                                        {item.snack?.name} x{item.quantity} = {formatCurrency(item.subtotal)}
-                                                    </span>
+                                                <div key={item.id_sale_item}>
+                                                    <div className="flex items-center space-x-2 text-xs sm:text-sm">
+                                                        <Package className="h-3 w-3 text-gray-400 flex-shrink-0" />
+                                                        <span className="text-slate-600 truncate">
+                                                            {item.snack?.name} x{item.quantity} = {formatCurrency(item.subtotal)}
+                                                        </span>
+                                                    </div>
+                                                    {isAlexcab24 && (
+                                                        <div className="flex space-x-2 ml-5 mt-1">
+                                                            <IdDisplay id={item.id_sale_item} label="Item ID" showWhen={true} className="text-xs" />
+                                                            <IdDisplay id={item.snack_id} label="Snack ID" showWhen={true} className="text-xs" />
+                                                        </div>
+                                                    )}
                                                 </div>
                                             ))}
                                         </div>
@@ -673,10 +708,11 @@ export default function SalesPage() {
                 {/* Sale Confirmation Modal */}
                 <ConfirmModal
                     isOpen={confirmModal.isOpen}
-                    onClose={() => setConfirmModal({ isOpen: false, saleData: null })}
+                    onClose={() => setConfirmModal({ isOpen: false, saleData: null, isLoading: false })}
                     onConfirm={handleConfirmSale}
                     title="Confirmar Venta"
                     message={`¿Estás seguro de que quieres registrar esta venta por ${formatCurrency(getCartTotal())}?`}
+                    isLoading={confirmModal.isLoading}
                     confirmText="Confirmar Venta"
                     cancelText="Cancelar"
                     variant="info"

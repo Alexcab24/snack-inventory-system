@@ -8,6 +8,7 @@ interface AuthContextType {
     user: User | null;
     isAuthenticated: boolean;
     isAdmin: boolean;
+    isAlexcab24: boolean;
     login: (username: string, password: string) => Promise<User>;
     logout: () => void;
     loading: boolean;
@@ -29,12 +30,13 @@ interface AuthProviderProps {
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
-    const { user, isAuthenticated, isAdmin, login, logout, loading, mounted } = useAuthHook();
+    const { user, isAuthenticated, isAdmin, isAlexcab24, login, logout, loading, mounted } = useAuthHook();
 
     const value: AuthContextType = {
         user,
         isAuthenticated,
         isAdmin,
+        isAlexcab24,
         login,
         logout,
         loading,

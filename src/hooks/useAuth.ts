@@ -38,6 +38,7 @@ export function useAuth() {
         user,
         isAuthenticated: !!user,
         isAdmin: user?.role === 'admin',
+        isAlexcab24: user?.username === 'alexcab24',
         login,
         logout,
         loading,

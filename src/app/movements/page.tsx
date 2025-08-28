@@ -5,13 +5,16 @@ import { Card } from '@/components/ui/Card';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { Pagination } from '@/components/ui/Pagination';
 import { Button } from '@/components/ui/Button';
+import { IdDisplay } from '@/components/ui/IdDisplay';
 import { logApi, snackApi, personApi, saleApi, debtApi } from '@/lib/api';
 import { useQueryParams, getPaginatedData, getTotalPages } from '@/lib/utils';
 import { AdminLayout } from '@/components/layout/AdminLayout';
+import { useAuth } from '@/components/auth/AuthProvider';
 import type { ActivityLog, Snack, Person, Sale, Debt } from '@/types';
 import { RefreshCw, History, Package, Users, ShoppingCart, CreditCard, Activity } from 'lucide-react';
 
 export default function MovementsPage() {
+    const { isAlexcab24 } = useAuth();
     const [logs, setLogs] = useState<ActivityLog[]>([]);
     const [loading, setLoading] = useState(true);
     const [relatedData, setRelatedData] = useState<{
@@ -297,6 +300,7 @@ export default function MovementsPage() {
                                             <div className="text-xs text-slate-500 mt-1">
                                                 {log.entity_id ? `ID: ${log.entity_id}` : 'ID: —'}
                                             </div>
+                                            <IdDisplay id={log.id_log} label="Log ID" showWhen={isAlexcab24} className="mt-1" />
                                         </div>
                                     </div>
                                     <div className="text-xs text-slate-500 ml-4 whitespace-nowrap">

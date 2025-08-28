@@ -6,15 +6,18 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import { IdDisplay } from '@/components/ui/IdDisplay';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { Pagination } from '@/components/ui/Pagination';
 import { Plus, Edit, Trash2, X, User, RefreshCw, DollarSign } from 'lucide-react';
 import { personApi, debtApi } from '@/lib/api';
 import { useQueryParams, getPaginatedData, getTotalPages, filterBySearch } from '@/lib/utils';
 import { AdminLayout } from '@/components/layout/AdminLayout';
+import { useAuth } from '@/components/auth/AuthProvider';
 import type { Person, PersonWithDebt, CreatePersonData } from '@/types';
 
 export default function PeoplePage() {
+    const { isAlexcab24 } = useAuth();
     const [people, setPeople] = useState<PersonWithDebt[]>([]);
     const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
@@ -268,6 +271,7 @@ export default function PeoplePage() {
                                         <h3 className="text-lg font-bold text-slate-900 group-hover:text-blue-700 transition-colors">
                                             {person.name}
                                         </h3>
+                                        <IdDisplay id={person.id_person} label="Person ID" showWhen={isAlexcab24} className="my-1" />
                                         <p className="text-sm text-slate-500 font-medium">
                                             Agregado: {new Date(person.created_at).toLocaleDateString('es-ES')}
                                         </p>

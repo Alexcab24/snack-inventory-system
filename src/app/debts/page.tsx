@@ -6,15 +6,18 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import { IdDisplay } from '@/components/ui/IdDisplay';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { Pagination } from '@/components/ui/Pagination';
 import { CreditCard, User, Package, CheckCircle } from 'lucide-react';
 import { debtApi } from '@/lib/api';
 import { formatCurrency, useQueryParams, getPaginatedData, getTotalPages } from '@/lib/utils';
 import { AdminLayout } from '@/components/layout/AdminLayout';
+import { useAuth } from '@/components/auth/AuthProvider';
 import type { Debt } from '@/types';
 
 export default function DebtsPage() {
+    const { isAlexcab24 } = useAuth();
     const [debts, setDebts] = useState<Debt[]>([]);
     const [loading, setLoading] = useState(true);
     const [showPaymentForm, setShowPaymentForm] = useState<string | null>(null);
@@ -218,6 +221,10 @@ export default function DebtsPage() {
                                             <div className="flex items-center space-x-2 mt-1">
                                                 <User className="h-4 w-4 text-gray-400" />
                                                 <span className="text-gray-600">{getPersonName(debt)}</span>
+                                            </div>
+                                            <div className="flex flex-wrap gap-2 mt-2">
+                                                <IdDisplay id={debt.id_debt} label="Debt ID" showWhen={isAlexcab24} />
+                                                <IdDisplay id={debt.id_sale} label="Sale ID" showWhen={isAlexcab24} />
                                             </div>
                                             {debt.sale && (
                                                 <div className="text-sm text-gray-500 mt-1">

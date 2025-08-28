@@ -422,10 +422,20 @@ export const saleApi = {
             throw new Error('La venta debe tener al menos un item');
         }
 
+        // Check for potential duplicate sales in the last 10 seconds
+        const tenSecondsAgo = new Date(Date.now() - 10000).toISOString();
+        const { data: recentSales } = await supabase
+            .from('sale')
+            .select('id_sale, person_id, total, created_at')
+            .eq('person_id', saleData.person_id)
+            .gte('created_at', tenSecondsAgo)
+            .order('created_at', { ascending: false })
+            .limit(5);
+
         // Validate all items and calculate total
         let total = 0;
-        const stockUpdates: { id: string; newStock: number }[] = [];
-        const saleItemsDetails: { snack_id: string; quantity: number }[] = [];
+        const stockUpdates: { id: string; originalStock: number; newStock: number; name: string }[] = [];
+        const saleItemsDetails: { snack_id: string; quantity: number; unit_price: number; subtotal: number }[] = [];
 
         for (const item of saleData.items) {
             // Get snack details to calculate total amount and check stock
@@ -448,96 +458,142 @@ export const saleApi = {
             total += subtotal;
             stockUpdates.push({
                 id: item.snack_id,
-                newStock: snack.stock - item.quantity
+                originalStock: snack.stock,
+                newStock: snack.stock - item.quantity,
+                name: snack.name
             });
-            saleItemsDetails.push({ snack_id: item.snack_id, quantity: item.quantity });
+            saleItemsDetails.push({
+                snack_id: item.snack_id,
+                quantity: item.quantity,
+                unit_price: snack.unit_sale_price,
+                subtotal
+            });
         }
 
-        // Start transaction-like operation
-        // First, update all stock levels
-        for (const update of stockUpdates) {
-            const { error: stockError } = await supabase
-                .from('snack')
-                .update({ stock: update.newStock })
-                .eq('id_snack', update.id);
-
-            if (stockError) {
-                console.error('Error updating stock:', stockError);
-                throw new Error('Error al actualizar el stock');
-            }
-        }
-
-        // Then create the sale
-        const { data: sale, error: saleError } = await supabase
-            .from('sale')
-            .insert({
-                person_id: saleData.person_id,
-                sale_date: saleData.sale_date,
-                total,
-                paid: saleData.paid
-            })
-            .select('*')
-            .single();
-
-        if (saleError) {
-            console.error('Error creating sale:', saleError);
-            throw saleError;
-        }
-
-        // Create sale items
-        for (const item of saleData.items) {
-            const { data: snack } = await supabase
-                .from('snack')
-                .select('unit_sale_price')
-                .eq('id_snack', item.snack_id)
-                .single();
-
-            const { error: itemError } = await supabase
-                .from('sale_item')
-                .insert({
-                    sale_id: sale.id_sale,
-                    snack_id: item.snack_id,
-                    quantity: item.quantity,
-                    unit_price: snack?.unit_sale_price || 0,
-                    subtotal: (snack?.unit_sale_price || 0) * item.quantity
+        // Additional check for potential duplicates with same total
+        if (recentSales && recentSales.length > 0) {
+            const duplicateCandidate = recentSales.find(sale =>
+                Math.abs(sale.total - total) < 0.01 // Same total within 1 cent
+            );
+            if (duplicateCandidate) {
+                console.warn('Potential duplicate sale detected, rejecting:', {
+                    existingSale: duplicateCandidate,
+                    newSaleData: saleData,
+                    calculatedTotal: total
                 });
-
-            if (itemError) {
-                console.error('Error creating sale item:', itemError);
-                throw new Error('Error al crear items de la venta');
+                throw new Error('Posible venta duplicada detectada. Por favor espera unos segundos antes de intentar nuevamente.');
             }
         }
 
-        // If sale is not paid, create a debt record
-        if (saleData.paid === 0) {
-            await debtApi.create({
-                id_sale: sale.id_sale,
-                amount: total,
-                paid: 'pending'
-            });
-        }
-
-        // Log sale
+        // Use a more robust approach with atomic operations
         try {
-            await logApi.createLog({
-                entity_type: 'sale',
-                entity_id: sale.id_sale,
-                action: 'venta_creada',
-                description: `Venta creada (total ${total}, ${saleData.paid === 1 ? 'pagada' : 'pendiente'})`,
-                details: {
+            // Create the sale first
+            const { data: sale, error: saleError } = await supabase
+                .from('sale')
+                .insert({
                     person_id: saleData.person_id,
                     sale_date: saleData.sale_date,
                     total,
-                    paid: saleData.paid,
-                    items: saleItemsDetails
-                }
-            });
-        } catch (e) {
-            console.error('Activity log failed (sale create):', e);
-        }
+                    paid: saleData.paid
+                })
+                .select('*')
+                .single();
 
-        // Return the created sale (without items for now to avoid cache issues)
-        return sale;
+            if (saleError) {
+                console.error('Error creating sale:', saleError);
+                throw saleError;
+            }
+
+            console.log('Sale created successfully:', sale.id_sale);
+
+            // Now update stock and create sale items with better error handling
+            for (let i = 0; i < saleData.items.length; i++) {
+                const item = saleData.items[i];
+                const stockUpdate = stockUpdates[i];
+                const itemDetail = saleItemsDetails[i];
+
+                // Update stock with optimistic concurrency check
+                const { data: updatedSnack, error: stockError } = await supabase
+                    .from('snack')
+                    .update({ stock: stockUpdate.newStock })
+                    .eq('id_snack', stockUpdate.id)
+                    .eq('stock', stockUpdate.originalStock) // Ensure stock hasn't changed since we checked
+                    .select('stock')
+                    .single();
+
+                if (stockError || !updatedSnack) {
+                    console.error('Error updating stock with concurrency check:', stockError);
+                    // Rollback: delete the sale we just created
+                    await supabase.from('sale').delete().eq('id_sale', sale.id_sale);
+                    throw new Error(`Error al actualizar el stock de ${stockUpdate.name}. Posiblemente fue modificado por otra transacción.`);
+                }
+
+                // Create sale item
+                const { error: itemError } = await supabase
+                    .from('sale_item')
+                    .insert({
+                        sale_id: sale.id_sale,
+                        snack_id: item.snack_id,
+                        quantity: item.quantity,
+                        unit_price: itemDetail.unit_price,
+                        subtotal: itemDetail.subtotal
+                    });
+
+                if (itemError) {
+                    console.error('Error creating sale item:', itemError);
+                    // Rollback: delete the sale and restore stock
+                    await supabase.from('sale').delete().eq('id_sale', sale.id_sale);
+                    // Restore all stocks updated so far
+                    for (let j = 0; j <= i; j++) {
+                        await supabase
+                            .from('snack')
+                            .update({ stock: stockUpdates[j].originalStock })
+                            .eq('id_snack', stockUpdates[j].id);
+                    }
+                    throw new Error('Error al crear items de la venta');
+                }
+            }
+
+            // If sale is not paid, create a debt record
+            if (saleData.paid === 0) {
+                try {
+                    await debtApi.create({
+                        id_sale: sale.id_sale,
+                        amount: total,
+                        paid: 'pending'
+                    });
+                } catch (debtError) {
+                    console.error('Error creating debt record:', debtError);
+                    // Continue execution as debt creation failure shouldn't block the sale
+                }
+            }
+
+            // Log sale
+            try {
+                await logApi.createLog({
+                    entity_type: 'sale',
+                    entity_id: sale.id_sale,
+                    action: 'venta_creada',
+                    description: `Venta creada (total ${total}, ${saleData.paid === 1 ? 'pagada' : 'pendiente'})`,
+                    details: {
+                        person_id: saleData.person_id,
+                        sale_date: saleData.sale_date,
+                        total,
+                        paid: saleData.paid,
+                        items: saleItemsDetails
+                    }
+                });
+            } catch (e) {
+                console.error('Activity log failed (sale create):', e);
+            }
+
+            console.log('Sale creation completed successfully:', sale.id_sale);
+            return sale;
+
+        } catch (error) {
+            console.error('Sale creation failed:', error);
+            throw error;
+        }
     },
 
     async update(id: string, saleData: Partial<CreateSaleData>): Promise<Sale> {
